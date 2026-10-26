@@ -1,0 +1,3434 @@
+<!doctype html>
+<!-- #!SRCD-MODULE 1
+     name: GLITCH_DIAL
+     slot: glitch_dial
+     processor: usr-glitch-dial
+     contract: SRC-D r158 · runs standalone, and as a face in an ØMNI_FRΛMΞ user rack
+     GLØTCH_DIΛL r14 — the r11 DRØP-NΛUT face, fitted to the phone; its sound and its sequence in the worklet. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob:; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; worker-src blob:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>I/Ø // GLØTCH_DIΛL</title>
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+  ═ GLØTCH_DIΛL · build r14 — DRØP-NΛUT face on the SRC-D r158 module contract ═
+  ═ A circuit-bent, DTMF-inspired glitch tone generator · user-rack module ═
+
+  ═══════════════════════════════════════════════════════════════════════════
+  WHAT THIS IS
+  ═══════════════════════════════════════════════════════════════════════════
+  A circuit-bent, DTMF-inspired glitch tone generator, built as an SRC-D r158
+  module: one file that runs on its own (opened directly) AND as a face in an
+  ØMNI_FRΛMΞ user rack. Slot glitch_dial · processor usr-glitch-dial.
+
+  r12 keeps the r11 face as it was — markup, palette, orbit, scope, grid. What
+  changed is underneath: every sound the page used to build out of Web Audio
+  nodes now lives in ONE AudioWorkletProcessor (WORKLET_SRC), and the page
+  only sends it messages.
+
+  ═══════════════════════════════════════════════════════════════════════════
+  WHY r12 STOPPED BEING A WEAVE PAGE
+  ═══════════════════════════════════════════════════════════════════════════
+  r11 announced itself up the srcd-omni tier as a utility page:
+      hello {cls:'weave', accent:'#39FFB4'} · ident {accent:'#39FFB4'} · weave-status
+  The enclosure paints a weave page's accent into its name / scope colour and
+  its status into a row of its own — racked as a module, that is the teal-green
+  repaint and the extra row under the level rows. A module owns no enclosure
+  colour and no enclosure row, so r12 sends NONE of them, only the srcd-duo
+  module protocol below. Do not add an accent back.
+
+  ═══════════════════════════════════════════════════════════════════════════
+  CONCEPT
+  ═══════════════════════════════════════════════════════════════════════════
+  An expanded alien telephone keypad: a human DTMF pad layout (the 3×4 ITU
+  frequency matrix, 12 tone buttons) extended with xenotype tone functions —
+  8 toggle buttons spiraling outward around the dial pad, plus a vector-field
+  radar scope for spatial audio control. The alien influence is a FLAVOR
+  (exotic tunings, non-Western intervals, inhuman timing), not a foundation.
+
+  Interaction model: BUTTON-MASHING AS COMPOSITION. Press, hold, drag,
+  chord, and sequence buttons to deploy configured tones and patterns.
+  Immediate and tactile, but deep enough to build musically applicable
+  patterns and export them.
+
+  ═══════════════════════════════════════════════════════════════════════════
+  MODULE PROTOCOL (SRC-D r158 · srcd-duo only)
+  ═══════════════════════════════════════════════════════════════════════════
+    up    wl-mount {processor, source:WORKLET_SRC, opts, rates} · wl-send {m}
+          wl-kill · pwr-state {on}                    (only ever through srcdUp)
+    down  wl-ready {sr} · wl-fail {err} · wl-progress · wl-msg {m}
+          tap-power · pwr-request · midi-note {note, vel, on} · bpm {bpm} · wl-dead · chrome-header {hide}
+  Every message listener runs behind srcdAdmit (window + origin). Text from
+  outside the page lands with textContent, never as markup.
+
+  WORKLET PORT — arrays; the P index is the wire protocol, append only:
+    ['p', i, v]               every sounding face control: LEVEL TUNING ENGINE
+                              BEND SCOPE-X SCOPE-Y PHANTOM DRONE FRACTURE GRAVITY
+                              STUTTER MIRROR · r14: AMOUNT ATTACK RELEASE, BPM GATE
+                              SWING, the sixteen steps, ROW HZ COL HZ RATIO
+    ['on', note, vel, how?]   how 0 live / MIDI · 1 a sequencer step · 2 clean DTMF
+    ['off', note, how?]       ['bend', note, cents]  (gesture-zone drag)
+    ['play', 1|0, atTime]     the transport — the rack's, or PLAY / SPACE here
+    ['panic']                 echoed back so the face clears with it
+    ['smp', op, slot, …]      sample slots: rec · get · load · start · stop · clr
+  and back from it:
+    ['run', 1|0] · ['st', step]          the loop runs / stopped · the step it is on
+    ['sl', slot, state, seconds]         0 empty 1 ready 2 playing 3 recording
+                                         4 armed for the downbeat 5 cued for it
+    ['smp', 'buf', slot, data, rate]     a finished take, for the face to keep
+    ['panic']
+  NOTE MAP: C4–B4 (60–71) are the 12 keys  1 2 3 / 4 5 6 / 7 8 9 / * 0 # ;
+  other octaves play the same key that many octaves away.
+
+  ═══════════════════════════════════════════════════════════════════════════
+  AUDIO
+  ═══════════════════════════════════════════════════════════════════════════
+  Hosted: the rack owns the AudioContext; this page NEVER builds one. ⏻ (or the
+  first key / glyph / slot gesture, as r11 did) sends wl-mount; a refusal or a
+  silence fails closed. Standalone: the same gesture builds our own context,
+  loads WORKLET_SRC from a blob, node → destination.
+  Signal order inside the worklet is r11's node graph, stage for stage:
+    voices + drone + slots → LEVEL (the slot recorder taps here) → STUTTER gate
+    → BEND chain → scope [lowpass dry + reverb wet → pan → phantom delay → gain]
+    → limiter → ceil1
+  Slot audio is owned by the face and re-sent on every power-up, so a power
+  cycle or a rack restart does not lose recorded slots.
+
+  ═══════════════════════════════════════════════════════════════════════════
+  BUILD ORDER (phases)
+  ═══════════════════════════════════════════════════════════════════════════
+    r01 stub  → this file renders the shell, plays a proof-of-concept DTMF tone
+    phase 1   → deep stub: full architecture scaffolded, working POC voice,
+                protocol wired, all engines/FX/samples/patterns left as TODO
+    phase 2   → implement alternate tone engines (FM, noise, wavetable, granular)
+    phase 3   → circuit-bend FX chain (drive, glitch/bitcrush, full)
+    phase 4   → sample handling: self-record from masterGain + pattern render to buffer
+    phase 5   → data-row integration (event emission, source requests)
+    phase 6   → pattern recorder (record/play/quantize)
+    phase 7   → pattern serialize/export + XML sheet-music
+    phase 8   → alien DTMF banks + custom tuning tables  ✓
+    phase 9   → gesture zones (pitch-bend ✓), layout customization, STEP grid UI
+    r12       → SRC-D r158 module: sound in usr-glitch-dial, srcd-duo only  ✓
+    r13       → one screen on the phone (stylus keys, finger glyphs), multi-touch holds  ✓
+    r14       → the sequence in the worklet (sample-tight, on the rack's bar), backwards
+                PHANTOM, AMOUNT / ATTACK / RELEASE, denser reverb + drive, the CFG
+                panel (phase 9's config), keys with their Hz, the step ring  ✓
+
+  ═══════════════════════════════════════════════════════════════════════════
+  FILENAME / ACTIVATION
+  ═══════════════════════════════════════════════════════════════════════════
+  glitch_dial.html, attached to the rack project; reopening ØMNI_FRΛMΞ ports
+  it. It is a rack module now, not a utility page: if omni_frame.html still
+  lists 'glitch_dial.html' in WEAVE_PAGES (the r11 activation step), take it
+  out — one file cannot be both.
+
+  ═══════════════════════════════════════════════════════════════════════════
+  OPEN QUESTIONS
+  ═══════════════════════════════════════════════════════════════════════════
+  1. Live recording vs pre-rendered taps for sample buttons
+  2. Xenotype aesthetic visibility in UI vs purely sonic
+  3. Layout customization vs fixed layouts
+  4. Mixer view necessity
+  5. Cross-page audio routing (glitch dial output back into a chassis)
+  ═══════════════════════════════════════════════════════════════════════════
+-->
+
+<style>
+  /* ═══════════════════════════════════════════════════════════════════════
+     PALETTE — alien-signal teal-green primary, circuit-bend magenta secondary.
+     Deliberately distinct from data_weave's orange (#FF4E00) so the row
+     changing is visible at a glance, exactly like DΛTΛ_WΞΛVΞ was deliberately
+     not the racks' colour. */
+  :root {
+    --signal:   #39FFB4;   /* alien-signal teal-green, primary */
+    --bend:     #FF3D8B;   /* circuit-bend magenta, secondary */
+    --xeno:    #b026ff;   /* xenotype violet, modifier accent */
+    --drone:   #ff2200;   /* deep-signal red, drone accent */
+    --hud:     #00e5ff;   /* HUD cyan — drop-naut scope accent */
+    --phantom: #b026ff;   /* phantom reverse-delay sweep */
+    --obsidian: #050610;
+    --panel-bg: #0a0c14;
+    --border:   #1a2030;
+    --muted:    #5a7090;
+  }
+
+  body {
+    background: var(--obsidian);
+    background-image:
+      radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 78% 12%, rgba(0,229,255,0.3), transparent),
+      radial-gradient(1px 1px at 45% 65%, rgba(255,255,255,0.25), transparent),
+      radial-gradient(1px 1px at 88% 78%, rgba(176,38,255,0.3), transparent),
+      radial-gradient(1px 1px at 22% 88%, rgba(255,255,255,0.2), transparent),
+      radial-gradient(1px 1px at 62% 35%, rgba(0,229,255,0.2), transparent),
+      radial-gradient(1px 1px at 8% 55%, rgba(255,255,255,0.15), transparent),
+      radial-gradient(ellipse at 50% 0%, #0a1525 0%, transparent 70%),
+      radial-gradient(ellipse at 25% 90%, rgba(176,38,255,0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at 75% 60%, rgba(0,229,255,0.04) 0%, transparent 45%),
+      linear-gradient(180deg, #050610 0%, #0a0c18 50%, #050610 100%);
+    background-attachment: fixed;
+    color: var(--signal);
+    font-family: 'Courier New', Courier, monospace;
+    margin: 0; padding: 1.5rem;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    overflow-x: hidden;
+  }
+
+  .terminal-container {
+    width: 100%; max-width: 760px;
+    background: var(--panel-bg);
+    background-image:
+      radial-gradient(ellipse at 50% 0%, rgba(0,229,255,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at 50% 100%, rgba(176,38,255,0.03) 0%, transparent 50%);
+    border: 1px solid var(--border);
+    box-shadow: 0 0 40px rgba(0,229,255,0.08), 0 0 80px rgba(176,38,255,0.05), inset 0 0 20px rgba(0,0,0,0.8);
+    padding: 22px; border-radius: 8px;
+    position: relative; isolation: isolate;   /* the galaxy sits behind the face, above this panel's own ground */
+    box-sizing: border-box;
+  }
+  .terminal-container::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--hud), transparent);
+    opacity: 0.5;
+  }
+
+  /* hosted inside ØMNI, the enclosure draws the header rows; hide ours so it
+     is not drawn twice. Standalone this class never arrives. Mirrors
+     data_weave's body.omni-chromed pattern. */
+  body.omni-chromed h2 { display: none; }
+
+  h2 {
+    border-bottom: 2px solid var(--hud);
+    padding-bottom: 10px; margin: 0;
+    text-transform: uppercase; letter-spacing: 2px;
+    text-shadow: 0 0 6px rgba(0,229,255,0.4);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  h2 .build-tag { color: var(--muted); font-size: 0.6em; letter-spacing: 1px; }
+
+  /* STATUS BAR — indicator + text + PANIC. Mirrors data_weave's status-bar
+     but with the signal palette. PANIC stops all voices immediately. */
+  .status-bar {
+    background: linear-gradient(180deg, #061218 0%, #050a10 100%);
+    padding: 10px 14px;
+    border: 1px solid var(--hud); margin: 14px 0; border-radius: 6px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-weight: bold; box-shadow: inset 0 0 12px rgba(0,0,0,0.5), 0 0 10px rgba(0,229,255,0.08);
+  }
+  .status-left { display: flex; align-items: center; gap: 14px; }
+  .status-indicator {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--signal); box-shadow: 0 0 10px var(--signal);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%   { opacity: 1; box-shadow: 0 0 12px var(--signal); }
+    50%  { opacity: 0.3; box-shadow: 0 0 3px var(--signal); }
+    100% { opacity: 1; box-shadow: 0 0 12px var(--signal); }
+  }
+
+  .btn {
+    background: transparent; color: var(--bend);
+    border: 1px solid var(--bend); padding: 4px 12px; border-radius: 4px;
+    font-family: inherit; cursor: pointer; text-transform: uppercase;
+    transition: all 0.15s;
+    box-shadow: 0 0 4px rgba(255,61,139,0.2);
+  }
+  .btn:hover { background: var(--bend); color: var(--obsidian); box-shadow: 0 0 14px var(--bend); }
+  .btn:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
+  .btn:disabled:hover { background: transparent; color: var(--bend); box-shadow: none; }
+  /* ⏻ POWER (r12 · SRC-D r158 face) — the same .btn as PANIC beside it, lit
+     in the scope's HUD cyan while the engine is live. */
+  .status-right { display: flex; align-items: stretch; gap: 8px; }
+  #pwr { line-height: 1; }
+  /* ⏻ is drawn, not typed: U+23FB is missing from many phone fonts and showed as an empty box (tofu) */
+  #pwr .pwr-ic { display: block; margin: 0 auto; }
+  #pwr.on { color: var(--hud); border-color: var(--hud); box-shadow: 0 0 10px rgba(0,229,255,0.35); }
+  #pwr.on:hover { background: var(--hud); color: var(--obsidian); box-shadow: 0 0 14px var(--hud); }
+
+  /* GLOBAL CONTROLS — TUNING / MODE / BEND selectors. Stub wiring only;
+     real behaviour TODO in phases 2–8. */
+  .controls {
+    display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center;
+  }
+  .controls select {
+    background: var(--obsidian); color: var(--signal);
+    border: 1px solid var(--border); padding: 5px 8px; border-radius: 4px;
+    font-family: inherit; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .controls select:hover {
+    border-color: var(--signal);
+    box-shadow: 0 0 8px rgba(57,255,180,0.2);
+  }
+  .controls select:focus {
+    border-color: var(--signal);
+    box-shadow: 0 0 12px rgba(57,255,180,0.3);
+    outline: none;
+  }
+  .controls label { color: var(--muted); font-size: 0.8em; letter-spacing: 1px; }
+
+  /* 3×4 DTMF MACRO GRID — the heart of the interface. One button per
+     row×col intersection. Compact for stylus precision. Neon-glowing,
+     pulsing, dynamic — each button is a living signal. */
+  #grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+    position: relative; z-index: 3;
+    width: 150px;
+  }
+  .macro {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle, #0d1815 0%, #080c0a 100%);
+    border: 1px solid rgba(57,255,180,0.2);
+    border-radius: 6px;
+    color: var(--signal); cursor: pointer; user-select: none; touch-action: none;
+    font-weight: bold; letter-spacing: 1px; font-size: 0.75em;
+    transition: all 0.12s ease;
+    box-shadow: inset 0 0 6px rgba(57,255,180,0.05), 0 0 3px rgba(57,255,180,0.1);
+    animation: macro-idle 3s ease-in-out infinite;
+  }
+  @keyframes macro-idle {
+    0%, 100% { box-shadow: inset 0 0 8px rgba(57,255,180,0.05), 0 0 4px rgba(57,255,180,0.08); }
+    50% { box-shadow: inset 0 0 12px rgba(57,255,180,0.1), 0 0 8px rgba(57,255,180,0.15); }
+  }
+  .macro:hover {
+    border-color: var(--signal);
+    box-shadow: 0 0 16px rgba(57,255,180,0.4), inset 0 0 12px rgba(57,255,180,0.15);
+    transform: translateY(-1px);
+  }
+  .macro.down {
+    background: radial-gradient(circle, var(--signal) 0%, #1aff8a 60%, #00cc77 100%);
+    color: var(--obsidian);
+    box-shadow: 0 0 24px var(--signal), 0 0 40px rgba(57,255,180,0.4), inset 0 0 8px rgba(0,0,0,0.2);
+    transform: scale(0.95);
+    animation: macro-down 0.3s ease;
+  }
+  @keyframes macro-down {
+    0% { box-shadow: 0 0 4px var(--signal); }
+    100% { box-shadow: 0 0 24px var(--signal), 0 0 40px rgba(57,255,180,0.4); }
+  }
+
+  /* ═ ΛLIΞN MØDΞ — when ALIEN-01 tuning is active, the whole grid shifts
+     palette so you can see you left the human ITU table. The border and
+     background tint go violet; the signal teal stays on the number buttons. */
+  body.alien-mode .terminal-container { box-shadow: 0 0 30px rgba(176,38,255,0.15), inset 0 0 15px rgba(0,0,0,0.8); }
+  body.alien-mode #grid { border: 1px solid rgba(176,38,255,0.2); padding: 4px; border-radius: 8px; }
+  body.alien-mode .macro {
+    border-color: rgba(176,38,255,0.25);
+    color: var(--xeno);
+    box-shadow: inset 0 0 8px rgba(176,38,255,0.08), 0 0 6px rgba(176,38,255,0.1);
+  }
+  body.alien-mode .macro.down {
+    background: radial-gradient(circle, var(--xeno) 0%, #c44fff 60%, #8a1acc 100%);
+    box-shadow: 0 0 24px var(--xeno), 0 0 40px rgba(176,38,255,0.4);
+  }
+
+  /* ═ CLOΛK MØDΞ — stealth mode: audio keeps playing but the .down
+     visual state goes invisible so nobody watching the screen can see what
+     you're dialing. The buttons still respond to touch; the feedback is just
+     suppressed. A faint violet ring stays so the operator knows it's on. */
+  body.phantom-mode .macro.down {
+    background: #0d1815; color: rgba(57,255,180,0.3); box-shadow: none; transform: none;
+    border: 1px solid rgba(176,38,255,0.12);
+    animation: none;
+  }
+
+  /* ═ SPECTRUM MØDΞ — recolors each button based on its row frequency.
+     Lower rows = warm (red/orange), higher rows = cool (blue/cyan). Applied
+     as a per-button neon inner glow. Toggles on/off. */
+  .macro.spectrum-0 { box-shadow: inset 0 0 16px rgba(255,60,0,0.35), 0 0 10px rgba(255,60,0,0.2); border-color: rgba(255,60,0,0.3); }
+  .macro.spectrum-1 { box-shadow: inset 0 0 16px rgba(255,180,0,0.3), 0 0 10px rgba(255,180,0,0.2); border-color: rgba(255,180,0,0.3); }
+  .macro.spectrum-2 { box-shadow: inset 0 0 16px rgba(0,200,255,0.3), 0 0 10px rgba(0,200,255,0.2); border-color: rgba(0,200,255,0.3); }
+  .macro.spectrum-3 { box-shadow: inset 0 0 16px rgba(80,120,255,0.3), 0 0 10px rgba(80,120,255,0.2); border-color: rgba(80,120,255,0.3); }
+
+  /* ═ CØCKPIT — the main interface area: radar scope + dial cluster side
+     by side. The radar is a vector field controller; the dial cluster has
+     the 4×4 grid at center and 8 xenotype buttons spiraling outward. */
+  .cockpit {
+    display: flex; gap: 16px; margin-bottom: 16px;
+    justify-content: center; align-items: center; flex-wrap: wrap;
+  }
+
+  /* ═ DRØP-NΛUT SCØPΞ — a circular vector-field HUD display. Draggable
+     vector points set X (distance: reverb, pitch, pan) and Y (cutoff, amp).
+     A rotating sweep line pings points as it passes them. In PHANTOM mode
+     a violet counter-clockwise beam engages, driving reverse-delay. */
+  .radar-wrap {
+    position: relative; width: 200px; flex-shrink: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .radar {
+    width: 200px; height: 200px; background: radial-gradient(circle, #061218 0%, #030608 70%);
+    border: 2px solid var(--hud); border-radius: 50%;
+    box-shadow: 0 0 30px rgba(0,229,255,0.25), inset 0 0 40px rgba(0,0,0,0.85);
+    cursor: crosshair; user-select: none; touch-action: none;
+    animation: radar-glow 3s ease-in-out infinite;
+  }
+  @keyframes radar-glow {
+    0%, 100% { box-shadow: 0 0 30px rgba(0,229,255,0.25), inset 0 0 40px rgba(0,0,0,0.85); }
+    50% { box-shadow: 0 0 45px rgba(0,229,255,0.4), inset 0 0 40px rgba(0,0,0,0.85); }
+  }
+  .radar-grid { fill: none; stroke: rgba(0,229,255,0.12); stroke-width: 0.5; }
+  .radar-cross { stroke: rgba(0,229,255,0.15); stroke-width: 0.5; stroke-dasharray: 3,3; }
+  /* HUD corner brackets — angular frame elements outside the circle */
+  .radar-bracket {
+    stroke: var(--hud); stroke-width: 1.5; fill: none; opacity: 0.4;
+  }
+  /* normal clockwise sweep */
+  .radar-sweep {
+    stroke: var(--hud); stroke-width: 1; stroke-linecap: round;
+    opacity: 0.55;
+    transform-origin: 100px 100px;
+    animation: radar-sweep 4s linear infinite;
+  }
+  @keyframes radar-sweep {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  .radar-sweep-fan {
+    fill: url(#sweep-grad);
+    transform-origin: 100px 100px;
+    animation: radar-sweep 4s linear infinite;
+    pointer-events: none;
+  }
+  /* phantom counter-clockwise sweep — violet, reverse rotation */
+  .radar-sweep-phantom {
+    stroke: var(--phantom); stroke-width: 1.5; stroke-linecap: round;
+    opacity: 0; transform-origin: 100px 100px;
+    animation: radar-sweep-rev 4s linear infinite;
+    filter: drop-shadow(0 0 4px var(--phantom));
+    transition: opacity 0.3s;
+  }
+  .radar-sweep-phantom-fan {
+    fill: url(#sweep-grad-phantom);
+    transform-origin: 100px 100px;
+    animation: radar-sweep-rev 4s linear infinite;
+    pointer-events: none; opacity: 0; transition: opacity 0.3s;
+  }
+  @keyframes radar-sweep-rev {
+    0%   { transform: rotate(360deg); }
+    100% { transform: rotate(0deg); }
+  }
+  /* when phantom mode is active: show phantom sweep, dim normal sweep */
+  .radar.phantom-sweep .radar-sweep-phantom { opacity: 0.65; }
+  .radar.phantom-sweep .radar-sweep-phantom-fan { opacity: 0.4; }
+  .radar.phantom-sweep .radar-sweep { opacity: 0.12; }
+  .radar.phantom-sweep .radar-sweep-fan { opacity: 0.12; }
+  /* phantom mode border tint */
+  .radar.phantom-sweep {
+    border-color: var(--phantom);
+    box-shadow: 0 0 35px rgba(176,38,255,0.35), inset 0 0 40px rgba(0,0,0,0.85);
+    animation: radar-phantom-glow 3s ease-in-out infinite;
+  }
+  @keyframes radar-phantom-glow {
+    0%, 100% { box-shadow: 0 0 35px rgba(176,38,255,0.35), inset 0 0 40px rgba(0,0,0,0.85); }
+    50% { box-shadow: 0 0 50px rgba(176,38,255,0.5), inset 0 0 40px rgba(0,0,0,0.85); }
+  }
+  .radar-pt {
+    fill: var(--bend); stroke: #fff; stroke-width: 1;
+    cursor: grab; filter: drop-shadow(0 0 6px var(--bend));
+    transition: r 0.1s;
+  }
+  .radar-pt.active {
+    fill: var(--hud);
+    filter: drop-shadow(0 0 10px var(--hud));
+    animation: radar-pt-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes radar-pt-pulse {
+    0%, 100% { filter: drop-shadow(0 0 8px var(--hud)); }
+    50% { filter: drop-shadow(0 0 14px var(--hud)); }
+  }
+  .radar-pt.dragging { cursor: grabbing; }
+  .radar-pt-label {
+    fill: var(--muted); font-size: 7px; font-family: 'Courier New', monospace;
+    text-anchor: middle; pointer-events: none;
+  }
+  /* axis labels integrated INSIDE the SVG so they never collide with chrome */
+  .radar-axis-label {
+    fill: rgba(0,229,255,0.5); font-size: 5.5px; font-family: 'Courier New', monospace;
+    letter-spacing: 0.5px; pointer-events: none;
+  }
+  .radar-readout {
+    font-size: 0.6em; color: var(--muted); letter-spacing: 1px;
+    text-align: center; min-height: 14px;
+  }
+  .radar-readout .val { color: var(--hud); }
+
+  /* ═ DIΛL CLUSTΞR — the 3×4 grid at center with 8 xenotype buttons
+     orbiting outward around it. Extra top padding ensures the orbit
+     doesn't collide with the radar scope or its readout text above. */
+  .dial-cluster {
+    position: relative; padding: 72px 64px 110px 64px;
+    margin-top: 12px;
+  }
+  .dial-cluster::before {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 130%; height: 130%; transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(0,229,255,0.05) 0%, rgba(176,38,255,0.03) 40%, transparent 70%);
+    pointer-events: none; z-index: 0;
+    animation: cluster-breathe 4s ease-in-out infinite;
+  }
+  @keyframes cluster-breathe {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+  }
+  .xo-spiral {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none; z-index: 3;
+  }
+  .xo-spiral .xo-btn {
+    position: absolute; left: 0; top: 0;
+    pointer-events: auto;
+    width: 34px; height: 34px;
+    /* transform is set by JS orbit loop — translate(x,y) + centering */
+    border-radius: 50%;
+    font-size: 0.9em;
+    z-index: 4;
+    background: radial-gradient(circle, #110a1a 0%, #06040a 100%);
+    box-shadow: 0 0 6px rgba(176,38,255,0.2), inset 0 0 4px rgba(176,38,255,0.1);
+    animation: xo-glow 4s ease-in-out infinite;
+    will-change: transform;
+    touch-action: none;
+  }
+  .xo-spiral .xo-btn:nth-child(2n) { animation-delay: -1s; }
+  .xo-spiral .xo-btn:nth-child(3n) { animation-delay: -2s; }
+  .xo-spiral .xo-btn:nth-child(4n) { animation-delay: -3s; }
+  @keyframes xo-glow {
+    0%, 100% { box-shadow: 0 0 6px rgba(176,38,255,0.2), inset 0 0 4px rgba(176,38,255,0.1); }
+    50% { box-shadow: 0 0 12px rgba(176,38,255,0.35), inset 0 0 8px rgba(176,38,255,0.2); }
+  }
+  /* GRABBED state — glyph is held by the operator, frozen in orbit */
+  .xo-spiral .xo-btn.grabbed {
+    width: 42px; height: 42px;
+    z-index: 10;
+    box-shadow: 0 0 20px var(--hud), 0 0 40px rgba(0,229,255,0.3), inset 0 0 8px rgba(0,229,255,0.2);
+    border-color: var(--hud); color: var(--hud);
+    filter: brightness(1.4);
+  }
+  /* connector lines from grid center to each spiral button (SVG overlay) */
+  .xo-spiral-lines {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 1;
+  }
+
+  /* ═ XΞNØTYPE SPIRΛL BUTTØNS — 8 toggle switches arranged in a spiral
+     around the central DTMF grid. Each changes the pad's behaviour. */
+  .xo-btn {
+    background: radial-gradient(circle, #110a1a 0%, #06040a 100%);
+    border: 1px solid var(--border); color: var(--muted);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.15s; user-select: none;
+  }
+  .xo-spiral .xo-btn:hover {
+    border-color: var(--xeno); color: var(--xeno);
+    box-shadow: 0 0 14px rgba(176,38,255,0.4), inset 0 0 6px rgba(176,38,255,0.15);
+    filter: brightness(1.2);
+  }
+  .xo-btn.active {
+    border-color: var(--xeno); color: var(--xeno);
+    box-shadow: 0 0 16px rgba(176,38,255,0.5), inset 0 0 8px rgba(176,38,255,0.2);
+    background: radial-gradient(circle, rgba(176,38,255,0.15) 0%, rgba(176,38,255,0.05) 100%);
+    animation: xo-active-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes xo-active-pulse {
+    0%, 100% { box-shadow: 0 0 16px rgba(176,38,255,0.5), inset 0 0 8px rgba(176,38,255,0.2); }
+    50% { box-shadow: 0 0 24px rgba(176,38,255,0.7), inset 0 0 12px rgba(176,38,255,0.3); }
+  }
+  .xo-btn[data-xo="drone"].active {
+    border-color: var(--drone); color: var(--drone);
+    box-shadow: 0 0 10px rgba(255,34,0,0.4); background: rgba(255,34,0,0.08);
+  }
+  .xo-btn[data-xo="pulse"].active {
+    border-color: var(--bend); color: var(--bend);
+    box-shadow: 0 0 10px rgba(255,61,139,0.4); background: rgba(255,61,139,0.08);
+  }
+  .xo-btn[data-xo="fracture"].active {
+    border-color: #00d4ff; color: #00d4ff;
+    box-shadow: 0 0 10px rgba(0,212,255,0.4); background: rgba(0,212,255,0.08);
+  }
+  .xo-btn[data-xo="gravity"].active {
+    border-color: #ff8800; color: #ff8800;
+    box-shadow: 0 0 10px rgba(255,136,0,0.4); background: rgba(255,136,0,0.08);
+  }
+  .xo-btn[data-xo="stutter"].active {
+    border-color: #ff00aa; color: #ff00aa;
+    box-shadow: 0 0 10px rgba(255,0,170,0.4); background: rgba(255,0,170,0.08);
+    animation: xo-flicker 0.12s infinite alternate;
+  }
+  .xo-btn[data-xo="mirror"].active {
+    border-color: #88ff00; color: #88ff00;
+    box-shadow: 0 0 10px rgba(136,255,0,0.4); background: rgba(136,255,0,0.08);
+  }
+  @keyframes xo-flicker {
+    0% { opacity: 1; } 100% { opacity: 0.55; }
+  }
+
+  /* ═ FRACTURE MØDΞ — held buttons get a cracked, split-glow effect.
+     Multiple offset neon box-shadows give a "shattered" look. */
+  body.fracture-mode .macro.down {
+    box-shadow: 0 0 24px var(--signal), 4px 0 12px rgba(0,212,255,0.4), -4px 0 12px rgba(176,38,255,0.35), inset 0 0 8px rgba(0,0,0,0.2);
+    border-color: #00d4ff;
+    animation: fracture-pulse 0.4s ease-in-out infinite alternate;
+  }
+  @keyframes fracture-pulse {
+    0% { box-shadow: 0 0 24px var(--signal), 4px 0 12px rgba(0,212,255,0.4), -4px 0 12px rgba(176,38,255,0.35); }
+    100% { box-shadow: 0 0 28px var(--signal), 6px 0 16px rgba(0,212,255,0.5), -6px 0 16px rgba(176,38,255,0.45); }
+  }
+
+  /* ═ GRAVITY MØDΞ — held buttons sink visually with a warm downward
+     neon gradient. */
+  body.gravity-mode .macro.down {
+    background: linear-gradient(180deg, var(--signal) 0%, #ff8800 70%, #aa4400 100%);
+    box-shadow: 0 0 24px #ff8800, 0 0 40px rgba(255,136,0,0.3);
+    border-color: #ff8800;
+    animation: gravity-sink 3s ease-in-out forwards;
+  }
+  @keyframes gravity-sink {
+    0% { box-shadow: 0 0 24px var(--signal); }
+    100% { box-shadow: 0 0 24px #ff8800, 0 0 40px rgba(255,136,0,0.3); }
+  }
+
+  /* ═ STUTTER MØDΞ — held buttons flicker on/off with neon strobe. */
+  body.stutter-mode .macro.down {
+    animation: stutter-flicker 0.08s infinite steps(2, end);
+  }
+  @keyframes stutter-flicker {
+    0% { box-shadow: 0 0 24px var(--signal), 0 0 40px rgba(57,255,180,0.4); background: var(--signal); }
+    50% { box-shadow: 0 0 2px rgba(57,255,180,0.1); background: #0d1815; color: rgba(57,255,180,0.3); }
+  }
+
+  /* ═ MIRROR MØDΞ — the grid border shifts to acid green and the
+     container gets a subtle scaleX hint that the matrix is transposed. */
+  body.mirror-mode #grid { border: 1px solid rgba(136,255,0,0.2); padding: 4px; border-radius: 8px; }
+  body.mirror-mode .macro { border-color: rgba(136,255,0,0.2); }
+
+  /* 8 SAMPLE-HANDLING SLOTS — source material buttons. Short-press plays/
+     stops a loaded sample; long-press (500ms) records 2s from masterGain or
+     renders a loaded PATTERN into the slot; double-click clears. */
+  #sample-row {
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-bottom: 14px;
+  }
+
+  /* 16-STEP SEQUENCER — visible only in STEP mode. Thin row of cells below
+     the macro grid. Active steps are filled, the edit cursor is highlighted,
+     and the playhead cell lights up during playback. */
+  #step-row {
+    display: none; grid-template-columns: repeat(16, 1fr); gap: 3px;
+    margin-bottom: 14px;
+  }
+  .step-cell {
+    height: 26px; background: #0c0c10; border: 1px solid var(--border); border-radius: 3px;
+    color: var(--muted); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 0.55em; transition: all 0.08s; user-select: none;
+  }
+  .step-cell:hover { border-color: var(--signal); box-shadow: 0 0 6px rgba(57,255,180,0.2); }
+  .step-cell.active { background: var(--signal); color: var(--obsidian); border-color: var(--signal); box-shadow: 0 0 8px var(--signal); }
+  .step-cell.cursor { border-color: var(--bend); box-shadow: 0 0 8px var(--bend); }
+  .step-cell.playhead { background: var(--bend); color: var(--obsidian); box-shadow: 0 0 12px var(--bend); animation: step-pulse 0.15s ease; }
+  @keyframes step-pulse { 0% { transform: scale(1.15); } 100% { transform: scale(1); } }
+  .slot {
+    aspect-ratio: 1; background: #0c0c10; border: 1px dashed var(--border); border-radius: 4px;
+    color: var(--muted); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 0.75em; transition: all 0.1s; user-select: none;
+  }
+  .slot:hover { border-color: var(--bend); color: var(--bend); box-shadow: 0 0 8px rgba(255,61,139,0.2); }
+  .slot.loaded { border-style: solid; border-color: var(--bend); color: var(--bend); box-shadow: 0 0 6px rgba(255,61,139,0.15); }
+  .slot.playing { background: var(--bend); color: var(--obsidian); box-shadow: 0 0 14px var(--bend); }
+  .slot.recording { background: var(--bend); color: var(--obsidian); animation: pulse 0.8s infinite; box-shadow: 0 0 14px var(--bend); }
+  /* r14 · waiting for the loop's downbeat: ARMED to record (still dashed), CUED to play */
+  .slot.armed { border-color: var(--bend); color: var(--bend); animation: slot-wait 0.8s steps(2, end) infinite; }
+  .slot.cued { border-style: solid; border-color: var(--bend); color: var(--bend); animation: slot-wait 0.8s steps(2, end) infinite; }
+  @keyframes slot-wait { 50% { opacity: 0.4; } }
+
+  /* CONFIG PANEL — r14 fills r11's placeholder: the controls that shape the
+     sound and the sequence (LEVEL, ATTACK, RELEASE, AMOUNT · BPM, GATE, SWING ·
+     the CUSTOM bank), opened by CFG beside ⏻. Below the slots, where r11 put it;
+     on the phone it lies over the selectors and the scope, so the keys stay
+     playable while it is open and nothing scrolls. */
+  .config-panel {
+    border: 1px solid var(--border); padding: 12px; color: var(--muted);
+    font-size: 0.85em; display: none;
+  }
+  .config-panel.open {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px 12px;
+    margin-top: 14px; border-radius: 6px;
+    background: linear-gradient(180deg, #061218 0%, #050a10 100%);
+    box-shadow: inset 0 0 12px rgba(0,0,0,0.5);
+  }
+  .cfg-fd {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 6px;
+    font-size: 0.8em; letter-spacing: 1px; min-width: 0;
+  }
+  .cfg-fd output { color: var(--hud); white-space: nowrap; }
+  .cfg-fd input[type=range] { grid-column: 1 / -1; width: 100%; min-width: 0; margin: 0; accent-color: var(--signal); }
+  .cfg-btns { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+  .cfg-btns .btn { font-size: 0.85em; }
+  /* ═ LEN · GALAXY ═ the sequence length slider, and the spiral galaxy behind the face that its slide zooms:
+     out to the whole galaxy at 16 steps, in toward the core at 1. The galaxy is one painted layer, scaled by
+     transform only while the slider moves — nothing runs when it is still. */
+  .galaxy { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: -1; overflow: hidden; border-radius: inherit; pointer-events: none; opacity: 0.5; }
+  .galaxy-zoom { position: absolute; left: 50%; top: 50%; width: 1024px; height: 1024px; margin: -512px 0 0 -512px; transform-origin: 50% 50%; will-change: transform; }
+  #galaxy-img { display: block; width: 100%; height: 100%; }
+  .seq-len { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+  .seq-len label { color: var(--muted); font-size: 0.8em; letter-spacing: 1px; }
+  .seq-len output { min-width: 2ch; text-align: right; color: var(--hud); font-size: 0.85em; text-shadow: 0 0 6px rgba(0,229,255,0.5); }
+  #len { flex: 1; min-width: 0; height: 26px; margin: 0; padding: 0; background: transparent; cursor: pointer; touch-action: none;
+         -webkit-appearance: none; appearance: none; }
+  #len:focus { outline: none; }
+  #len::-webkit-slider-runnable-track { height: 2px; border-radius: 2px; background: linear-gradient(90deg, rgba(0,229,255,0.12), var(--hud)); box-shadow: 0 0 8px rgba(0,229,255,0.45); }
+  #len::-moz-range-track { height: 2px; border-radius: 2px; background: linear-gradient(90deg, rgba(0,229,255,0.12), var(--hud)); box-shadow: 0 0 8px rgba(0,229,255,0.45); }
+  #len::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -7px; border-radius: 50%; box-sizing: border-box;
+         background: var(--obsidian); border: 2px solid var(--hud); box-shadow: 0 0 10px var(--hud), inset 0 0 5px rgba(0,229,255,0.55); }
+  #len::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box;
+         background: var(--obsidian); border: 2px solid var(--hud); box-shadow: 0 0 10px var(--hud), inset 0 0 5px rgba(0,229,255,0.55); }
+  #len:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 14px var(--signal), inset 0 0 5px rgba(57,255,180,0.6); border-color: var(--signal); }
+  #cfg.on, #play.on { background: var(--bend); color: var(--obsidian); box-shadow: 0 0 14px var(--bend); }
+
+  /* ═ r14 · KEYS · RING · READOUT ═ each key carries its two tones under its
+     label (MIRROR shows them swapped); a key the sequence or the rack's MIDI
+     is playing lights in the scope's cyan — PHANTOM hides that, as it hides a
+     press. The scope's rim carries the sixteen steps (see the ring in §10). */
+  .macro { flex-direction: column; gap: 1px; }
+  .macro .lab { line-height: 1; }
+  .macro .hz { font-size: 6.5px; font-weight: normal; letter-spacing: 0; line-height: 1; opacity: 0.6; white-space: nowrap; }
+  body:not(.phantom-mode) .macro.seq:not(.down),
+  body:not(.phantom-mode) .macro.midi:not(.down) {
+    border-color: var(--hud); color: var(--hud);
+    box-shadow: 0 0 14px rgba(0,229,255,0.5), inset 0 0 10px rgba(0,229,255,0.2);
+    animation: none;
+  }
+  .ring-tick { stroke: rgba(0,229,255,0.22); stroke-width: 1; stroke-linecap: round; pointer-events: none; }
+  .ring-tick.beat { stroke: rgba(0,229,255,0.45); }
+  .ring-tick.hit { stroke: var(--signal); stroke-width: 2; }
+  .ring-tick.ph { stroke: var(--bend); stroke-width: 2.5; }
+  .radar.phantom-sweep .ring-tick:not(.hit):not(.ph) { stroke: rgba(176,38,255,0.35); }
+  .ring-cursor { fill: var(--bend); pointer-events: none; }
+  .ring-tick.off { opacity: 0.22; }          /* a step the loop does not reach (LEN) */
+  .step-cell.out { opacity: 0.3; }
+  .radar-ping { fill: none; stroke: var(--hud); stroke-width: 1; pointer-events: none; }
+  .radar.phantom-sweep .radar-ping { stroke: var(--phantom); }
+  .radar-readout { width: max-content; }   /* centred under the scope, as wide as its longest line */
+  .radar-readout .ro-l { display: block; white-space: nowrap; }
+  .radar-readout .ro-sep { display: none; }
+  .radar-readout .val { white-space: pre; }
+
+  /* ═ MØBILΞ (r13) — Moto G Stylus portrait: the whole face on one screen,
+     no scrolling. Same stack as r11 (radar on top, dial cluster below,
+     controls in a compact grid, PLAY and EXPORT on their own row), sized for
+     a STYLUS ON THE KEYS and FINGERS ON THE GLYPHS:
+       · the keys may shrink to 36 px — a stylus tip is precise
+       · the eight glyphs never shrink: 46 px, a fingertip, to catch and hold
+       · fitPhone() (script §12) sets --key and --radar to the screen it finds:
+         keys give way first down to 40 px, then the scope, then keys to 36
+     The orbit flattens to stay inside the dial cluster, so nothing below or
+     above it gets covered; where its ellipse crosses the keypad's corners the
+     glyphs pass BEHIND the keys, so a stylus always lands on a key. */
+  :root { --radar: 160px; --key: 44px; --glyph: 46px; }
+  @media (max-width: 480px) {
+    body { padding: 3px; min-height: 0; }
+
+    .terminal-container { padding: 6px 9px 8px; border-radius: 6px; }
+
+    h2 { font-size: 0.95em; padding-bottom: 5px; }
+    h2 .build-tag { font-size: 0.55em; }
+
+    .status-bar { padding: 3px 7px; margin: 5px 0; font-size: 0.8em; }
+    .status-left { gap: 9px; min-width: 0; flex: 1 1 auto; }
+    .status-indicator { width: 10px; height: 10px; flex: none; }
+    /* the status line keeps the bar one height: two lines at most, then … */
+    #status { font-size: 0.9em; line-height: 1.2; overflow: hidden; overflow-wrap: anywhere;
+              display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+    .status-right { gap: 6px; flex: none; margin-left: 8px; }
+    .status-bar .btn { min-height: 28px; padding: 3px 10px; }
+
+    .controls {
+      gap: 3px 6px; margin-bottom: 5px;
+      display: grid;
+      grid-template-columns: auto 1fr auto 1fr;
+      align-items: center;
+    }
+    .controls label { font-size: 0.62em; }
+    .controls select { padding: 3px 5px; font-size: 0.72em; }
+    .controls .btn { padding: 3px 8px; font-size: 0.72em; }
+    /* PLAY and EXPORT go full-width on their own row */
+    .controls .btn { grid-column: span 2; }
+
+    .cockpit { flex-direction: column; gap: 2px; margin-bottom: 5px; }
+
+    .radar-wrap { width: var(--radar); gap: 1px; }
+    .radar { width: var(--radar); height: var(--radar); }
+    .radar-readout { min-height: 12px; line-height: 12px; white-space: nowrap; }   /* one line at any scope size */
+    /* r14: the fuller readout stays one line, centred under the scope and as wide as it needs */
+    .radar-readout { font-size: 0.55em; letter-spacing: 0; }
+    .radar-readout .ro-l, .radar-readout .ro-sep { display: inline; }
+
+    /* the keypad at --key a key; the cluster's height is exactly what the
+       flattened orbit needs (outer glyph radius + its half) and no more */
+    #grid { width: calc(3 * var(--key) + 8px); }
+    .dial-cluster { padding: calc(0.28 * var(--key) + 1.07 * var(--glyph) + 8px) 40px; margin-top: 0; }
+    .xo-spiral { z-index: 2; }
+    .xo-spiral .xo-btn { box-sizing: border-box; width: var(--glyph); height: var(--glyph); font-size: 1.15em; }
+    .xo-spiral .xo-btn.grabbed { width: calc(var(--glyph) + 8px); height: calc(var(--glyph) + 8px); }
+
+    #sample-row { gap: 4px; margin-bottom: 0; }
+    .slot { aspect-ratio: auto; height: 30px; touch-action: none; }
+    #step-row { margin-bottom: 5px; }
+    .step-cell { height: 20px; font-size: 0.5em; }
+    .seq-len { margin-bottom: 2px; gap: 8px; }
+    .seq-len label { font-size: 0.62em; }
+    #len { height: 22px; }
+
+    /* r14: CFG lies over the selectors and the scope (placeConfig() sizes it) */
+    .config-panel.open {
+      position: absolute; left: 9px; right: 9px; z-index: 20; margin: 0;
+      grid-template-columns: 1fr 1fr; gap: 1px 12px; padding: 5px 9px;
+      align-content: space-evenly; overflow-y: auto; box-sizing: border-box;
+      background: var(--panel-bg); border-color: var(--hud);
+      box-shadow: 0 0 24px rgba(0,0,0,0.9), inset 0 0 12px rgba(0,0,0,0.5);
+    }
+    .cfg-fd { font-size: 0.72em; gap: 0 6px; }
+    .cfg-fd input[type=range] { height: 20px; }
+    .cfg-btns .btn { min-height: 26px; padding: 2px 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="terminal-container">
+  <!-- the backdrop LEN moves: a spiral galaxy, painted once by JS -->
+  <div class="galaxy" aria-hidden="true"><div class="galaxy-zoom" id="galaxy-zoom"><canvas id="galaxy-img"></canvas></div></div>
+  <h2>GLØTCH_DIΛL <span class="build-tag">r14 · drop-naut</span></h2>
+
+  <div class="status-bar">
+    <div class="status-left">
+      <span class="status-indicator" id="dot"></span>
+      <span id="status">STANDBY</span>
+    </div>
+    <div class="status-right">
+      <button class="btn" id="cfg" aria-pressed="false" aria-controls="config" title="CONFIG · level, envelope, amount, tempo, the custom bank">CFG</button>
+      <button class="btn" id="pwr" aria-pressed="false" title="POWER" aria-label="power"><svg class="pwr-ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3.6v7.4"/><path d="M6.9 7.3a7.5 7.5 0 1 0 10.2 0"/></svg></button>
+      <button class="btn" id="panic">PANIC</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <label>TUNING</label>
+    <select id="tuning">
+      <option value="itu">ITU-DTMF</option>
+      <option value="alien-01">ALIEN-01</option>
+      <option value="custom">CUSTOM</option>
+    </select>
+    <label>MODE</label>
+    <select id="mode">
+      <option value="live">LIVE</option>
+      <option value="pattern">PATTERN</option>
+      <option value="step">STEP</option>
+    </select>
+    <label>BEND</label>
+    <select id="bend">
+      <option value="clean">CLEAN</option>
+      <option value="drive">DRIVE</option>
+      <option value="glitch">GLITCH</option>
+      <option value="full">FULL</option>
+      <option value="echo">ECHO</option>
+      <option value="vacuum">VACUUM</option>
+    </select>
+    <label>ENGINE</label>
+    <select id="engine">
+      <option value="dtmf">DTMF</option>
+      <option value="fm">FM</option>
+      <option value="noise">NOISE</option>
+      <option value="warp">WARP</option>
+    </select>
+    <button class="btn" id="play" disabled>PLAY</button>
+    <button class="btn" id="export" disabled>EXPORT</button>
+  </div>
+
+  <!-- LEN: how many of the sixteen steps the loop plays — slid while it runs; smooth, the galaxy behind follows -->
+  <div class="seq-len">
+    <label for="len">LEN</label>
+    <input type="range" id="len" min="1" max="16" step="any" value="16" aria-label="sequence length" title="LEN · slide to shorten or lengthen the loop while it plays">
+    <output id="len-out" for="len">16</output>
+  </div>
+
+  <div class="cockpit">
+    <!-- DRØP-NΛUT SCØPΞ — vector field HUD controller -->
+    <div class="radar-wrap">
+      <svg class="radar" id="radar" viewBox="0 0 200 200">
+        <defs>
+          <linearGradient id="sweep-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="rgba(0,229,255,0)"/>
+            <stop offset="100%" stop-color="rgba(0,229,255,0.15)"/>
+          </linearGradient>
+          <linearGradient id="sweep-grad-phantom" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="rgba(176,38,255,0)"/>
+            <stop offset="100%" stop-color="rgba(176,38,255,0.15)"/>
+          </linearGradient>
+        </defs>
+        <!-- concentric range rings -->
+        <circle class="radar-grid" cx="100" cy="100" r="90"/>
+        <circle class="radar-grid" cx="100" cy="100" r="60"/>
+        <circle class="radar-grid" cx="100" cy="100" r="30"/>
+        <!-- crosshairs -->
+        <line class="radar-cross" x1="10" y1="100" x2="190" y2="100"/>
+        <line class="radar-cross" x1="100" y1="10" x2="100" y2="190"/>
+        <!-- HUD corner brackets -->
+        <path class="radar-bracket" d="M8,25 L8,8 L25,8"/>
+        <path class="radar-bracket" d="M175,8 L192,8 L192,25"/>
+        <path class="radar-bracket" d="M192,175 L192,192 L175,192"/>
+        <path class="radar-bracket" d="M25,192 L8,192 L8,175"/>
+        <!-- axis labels inside SVG -->
+        <text class="radar-axis-label" x="14" y="196">◀ STEREO</text>
+        <text class="radar-axis-label" x="186" y="14" text-anchor="end">AMP ▲</text>
+        <!-- r14 · the sixteen steps round the rim (ticks inserted by JS) -->
+        <g id="radar-ring"></g>
+        <!-- normal clockwise sweep fan + line -->
+        <path class="radar-sweep-fan" d="M100,100 L100,10 A90,90 0 0,1 177,49 Z"/>
+        <line class="radar-sweep" x1="100" y1="100" x2="100" y2="10"/>
+        <!-- phantom counter-clockwise sweep -->
+        <path class="radar-sweep-phantom-fan" d="M100,100 L100,10 A90,90 0 0,1 177,49 Z"/>
+        <line class="radar-sweep-phantom" x1="100" y1="100" x2="100" y2="10"/>
+        <!-- r14 · a point pings as the sweep crosses it -->
+        <g id="radar-pings"></g>
+        <!-- vector points inserted by JS -->
+        <g id="radar-points"></g>
+      </svg>
+      <div class="radar-readout" id="radar-readout"></div>
+    </div>
+
+    <!-- DIΛL CLUSTΞR — grid at center, buttons spiraling outward -->
+    <div class="dial-cluster">
+      <div id="grid"></div>
+      <svg class="xo-spiral-lines" id="spiral-lines"></svg>
+      <div class="xo-spiral" id="xo-spiral">
+        <div class="xo-btn" data-xo="phantom" data-label="PHANTOM" title="PHANTOM · stealth — audio stays, visuals go dark">⊗</div>
+        <div class="xo-btn" data-xo="spectrum" data-label="SPECTRUM" title="SPECTRUM · recolor grid by frequency">◉</div>
+        <div class="xo-btn" data-xo="drone" data-label="DRONE" title="DRONE · drone layer underneath">⊕</div>
+        <div class="xo-btn" data-xo="pulse" data-label="PULSE" title="PULSE · bioluminescent glow scales with held count">✦</div>
+        <div class="xo-btn" data-xo="fracture" data-label="FRACTURE" title="FRACTURE · split tones into microtonal clusters">⟁</div>
+        <div class="xo-btn" data-xo="gravity" data-label="GRAVITY" title="GRAVITY · pull held tones downward over time">▼</div>
+        <div class="xo-btn" data-xo="stutter" data-label="STUTTER" title="STUTTER · rapid gate tremolo on held voices">⇌</div>
+        <div class="xo-btn" data-xo="mirror" data-label="MIRROR" title="MIRROR · transpose the frequency matrix diagonally">⇄</div>
+      </div>
+    </div>
+  </div>
+  <div id="sample-row"></div>
+  <div class="config-panel" id="config" role="group" aria-label="CONFIG"></div>
+</div>
+
+<script>
+"use strict";
+/* ═══════════ SRC-D SHΛRΞD HΞΛDΞR · as the suite's faces carry it ═══════════ */
+const SRCD_HOSTED=!!(window.parent&&window.parent!==window);
+const SRCD_RATES={prefer:48000, min:44100, max:96000};
+/* ═ r136 origin pinning ═ srcdAdmit / srcdUp */
+let SRCD_PO=null, SRCD_PWARN=false;
+const SRCD_WEB=o=>typeof o==='string' && /^https?:/i.test(o);
+if(typeof SRCD_HOSTED!=='undefined' && SRCD_HOSTED){ try{ const ao=location.ancestorOrigins; if(ao&&ao.length&&SRCD_WEB(ao[0])) SRCD_PO=ao[0]; }catch(_){} }
+function srcdAdmit(e){
+  if(typeof SRCD_HOSTED==='undefined' || !SRCD_HOSTED || !e || e.source!==window.parent) return false;
+  if(SRCD_PO) return e.origin===SRCD_PO;
+  if(SRCD_WEB(e.origin)) SRCD_PO=e.origin;
+  return true;
+}
+function srcdUp(msg, transfer){
+  if(typeof SRCD_HOSTED==='undefined' || !SRCD_HOSTED) return;
+  if(!SRCD_PO && !SRCD_PWARN){ SRCD_PWARN=true; try{ console.warn('srcd: parent origin unknown, using "*" until rack speaks'); }catch(_){} }
+  try{ window.parent.postMessage(msg, SRCD_PO||'*', transfer||[]); }catch(_){}
+}
+window.__srcdUp=srcdUp; window.__srcdAdmit=srcdAdmit;
+/* every 'message' listener, now and later, hears only the rack that mounted us */
+(function srcdOnlyOurParent(){
+  const real = window.addEventListener.bind(window);
+  window.addEventListener = function(type, fn, opts){
+    if (type !== 'message' || typeof fn !== 'function') return real(type, fn, opts);
+    return real(type, function(e){
+      if (window.parent === window) return;      /* standalone: nobody to trust */
+      if (!srcdAdmit(e)) return;    /* not our chassis */
+      return fn.call(this, e);
+    }, opts);
+  };
+})();
+
+/* ═══════════ THΞ MØDULΞ ═══════════ from MOD_ID to the end of WORKLET_SRC: constants only
+   (the console's probe evaluates exactly this span, with no document and no window) */
+const MOD_ID="glitch_dial";
+const SRCD_MOD="glitch_dial";
+/* the parameter table: the wire protocol is the index — append only, never reorder.
+   One row per face control that changes the sound; TUNING / ENGINE / BEND are
+   rounded to an index by the worklet, the toggles are on above 0.5. r14 appends
+   the shaping controls, the sequencer (BPM GATE SWING, sixteen steps: 0 a rest,
+   1–12 a key) and the CUSTOM bank (row and column tones, the ratio between). TWIST is appended after
+   them: the level balance of the DTMF engine's two tones, 0 = equal (as every build before it). LENGTH is the last: how many of the
+   sixteen steps the loop plays, 1–16 (16 = the whole bar, as every build before it). */
+const P=[
+ {k:"lvl", n:"LEVEL",    min:0, max:1, d:0.8},
+ {k:"tun", n:"TUNING",   min:0, max:2, d:0},
+ {k:"eng", n:"ENGINE",   min:0, max:3, d:0},
+ {k:"bnd", n:"BEND",     min:0, max:5, d:0},
+ {k:"rdx", n:"SCOPE X",  min:0, max:1, d:0.5},
+ {k:"rdy", n:"SCOPE Y",  min:0, max:1, d:0.5},
+ {k:"phm", n:"PHANTOM",  min:0, max:1, d:0},
+ {k:"drn", n:"DRONE",    min:0, max:1, d:0},
+ {k:"frc", n:"FRACTURE", min:0, max:1, d:0},
+ {k:"grv", n:"GRAVITY",  min:0, max:1, d:0},
+ {k:"stu", n:"STUTTER",  min:0, max:1, d:0},
+ {k:"mir", n:"MIRROR",   min:0, max:1, d:0},
+ {k:"amt", n:"AMOUNT",   min:0, max:1, d:0.5},
+ {k:"atk", n:"ATTACK",   min:0, max:1, d:0.21},
+ {k:"rel", n:"RELEASE",  min:0, max:1, d:0.38},
+ {k:"bpm", n:"BPM",      min:40, max:240, d:120},
+ {k:"gat", n:"GATE",     min:0.05, max:1, d:0.9},
+ {k:"swg", n:"SWING",    min:0, max:0.5, d:0},
+ {k:"s01", n:"STEP 01",  min:0, max:12, d:0},
+ {k:"s02", n:"STEP 02",  min:0, max:12, d:0},
+ {k:"s03", n:"STEP 03",  min:0, max:12, d:0},
+ {k:"s04", n:"STEP 04",  min:0, max:12, d:0},
+ {k:"s05", n:"STEP 05",  min:0, max:12, d:0},
+ {k:"s06", n:"STEP 06",  min:0, max:12, d:0},
+ {k:"s07", n:"STEP 07",  min:0, max:12, d:0},
+ {k:"s08", n:"STEP 08",  min:0, max:12, d:0},
+ {k:"s09", n:"STEP 09",  min:0, max:12, d:0},
+ {k:"s10", n:"STEP 10",  min:0, max:12, d:0},
+ {k:"s11", n:"STEP 11",  min:0, max:12, d:0},
+ {k:"s12", n:"STEP 12",  min:0, max:12, d:0},
+ {k:"s13", n:"STEP 13",  min:0, max:12, d:0},
+ {k:"s14", n:"STEP 14",  min:0, max:12, d:0},
+ {k:"s15", n:"STEP 15",  min:0, max:12, d:0},
+ {k:"s16", n:"STEP 16",  min:0, max:12, d:0},
+ {k:"crw", n:"ROW HZ",   min:100, max:2000, d:697},
+ {k:"ccl", n:"COL HZ",   min:200, max:4000, d:1209},
+ {k:"cst", n:"RATIO",    min:1.01, max:1.5, d:1.105},
+ {k:"twi", n:"TWIST",    min:-1, max:1, d:0},
+ {k:"len", n:"LENGTH",   min:1, max:16, d:16}
+];
+const NP=39;
+const PROC="usr-glitch-dial";
+const GATE0=[];
+const WORKLET_SRC=`const NP=${NP};
+const PDEF=${JSON.stringify(P.map(q=>({a:q.min,b:q.max})))};
+const PD0=${JSON.stringify(P.map(q=>q.d))};
+const G0=${JSON.stringify(GATE0)};
+const PROC=${JSON.stringify(PROC)};
+/* GLØTCH_DIΛL r14 · the sound. r11's graph, stage for stage, with the alternate build's engine
+   extras folded in:
+     voices + drone + slots -> LEVEL (the slot recorder taps here) -> STUTTER gate
+     -> BEND chain (AMOUNT) -> scope: lowpass (dry) + 8-line reverb (wet) -> stereo pan
+     -> PHANTOM (echoes read backwards, over the dry) -> scope gain -> limiter -> ceil1
+   and a 16-step sequencer that keeps its own sample clock: the rack's transport and its
+   atTime land here, so steps are sample-tight and join the rack's bar */
+const NV=16, NS=8, TAU=6.283185307179586, CEIL_T=0.977, CEIL_R=1-CEIL_T, THR=1e-5;
+/* P rows by index — the order of P on the page, append only */
+const LVL=0, TUN=1, ENG=2, BND=3, RDX=4, RDY=5, PHM=6, DRN=7, FRC=8, GRV=9, STU=10, MIR=11;
+const AMT=12, ATK=13, REL=14, BPM=15, GAT=16, SWG=17, ST0=18, CRW=34, CCL=35, CST=36, TWI=37, LEN=38;
+/* TWIST, as the telephone network names it: the level of the column (high) tone against the row (low) tone.
+   TWI is -1..1 and +-TW_DB dB at the ends; the louder tone stays at full level and the other falls, so a
+   twist never adds level, and 0 multiplies both tones by exactly 1 */
+const TW_DB=24;
+/* the two fixed banks as the face lists them, 4 row tones and 3 column tones each:
+   ITU-DTMF, ALIEN-01. CUSTOM is built from ROW HZ, COL HZ and RATIO */
+const ROWS=new Float64Array([697,770,852,941, 303,411,587,799]);
+const COLS=new Float64Array([1209,1336,1477, 1810,2093,2416]);
+/* r11's voice gain envelopes: DTMF 0.18, FM 0.2, NOISE 0.22, WARP 0.25 */
+const PEAK=new Float64Array([0.18,0.2,0.22,0.25]);
+/* FRACTURE: row copies at +7 -7 +15 -15 cents, one column copy at -12 cents */
+const FRAC=new Float64Array([Math.pow(2,7/1200),Math.pow(2,-7/1200),Math.pow(2,15/1200),Math.pow(2,-15/1200),Math.pow(2,-12/1200)]);
+/* the reverb standing in for r11's 1.5 s convolver: four diffusers, then eight feedback
+   lines through a Hadamard mix, 1.4 s to -60 dB (lengths in samples at 48 kHz) */
+const FDN=new Int32Array([1433,1601,1867,2053,2251,2399,2617,2797]);
+const DIF=new Int32Array([142,107,379,277]);
+/* r11's DynamicsCompressor: threshold -3 dB, ratio 20, knee 0, attack 3 ms, release 150 ms,
+   and the make-up gain that node adds on its own at those settings */
+const LIM_T=0.7079457843841379, LIM_MK=1.2182;
+/* r11's scope lowpass takes Q in dB: 10^(1/20) */
+const QS=1.1220184543019633;
+/* one sine cycle, 4096 points read with linear interpolation (error under -120 dB) */
+const SIN=new Float64Array(4098); for(let i=0;i<4098;i++) SIN[i]=Math.sin(TAU*i/4096);
+function sn(a){ const x=a*4096, i=x|0; return SIN[i]+(SIN[i+1]-SIN[i])*(x-i); }
+
+/* the last thing every sample passes: NaN out as silence, denormals flushed, a soft ceiling under 1.0 */
+function ceil1(x){
+  if(x!==x) return 0;
+  if(x<1e-15&&x>-1e-15) return 0;
+  if(x>CEIL_T) return CEIL_T+CEIL_R*Math.tanh((x-CEIL_T)/CEIL_R);
+  if(x<-CEIL_T) return -(CEIL_T+CEIL_R*Math.tanh((-x-CEIL_T)/CEIL_R));
+  return x;
+}
+/* a P value to a whole index 0..n-1 (NaN to 0) */
+function ix(v,n){ v=Math.round(v); return (v>=0&&v<n)?v:(v>=n?n-1:0); }
+function fin(x){ return x-x===0; }
+
+class UsrGlitchDial extends AudioWorkletProcessor{
+  constructor(){
+    super();
+    const sr=sampleRate; this.sr=sr; this.isr=1/sr;
+    this.p=new Float64Array(NP); for(let i=0;i<NP;i++) this.p[i]=PD0[i];
+    /* every buffer allocated here, once: nothing is allocated inside process() */
+    this.note=new Int32Array(NV).fill(-1); this.how=new Int32Array(NV); this.eng=new Int32Array(NV);
+    this.gate=new Uint8Array(NV); this.stage=new Uint8Array(NV);  /* 0 idle 1 attack 2 hold 3 release 4 noise burst 5 noise cut */
+    this.env=new Float64Array(NV); this.ek=new Float64Array(NV); this.en=new Float64Array(NV); this.pk=new Float64Array(NV);
+    this.age=new Float64Array(NV); this.seq=0;
+    this.fr=new Float64Array(NV); this.fc=new Float64Array(NV); this.dev=new Float64Array(NV);
+    this.ph1=new Float64Array(NV); this.ph2=new Float64Array(NV);
+    this.mu=new Float64Array(NV).fill(1); this.muT=new Float64Array(NV).fill(1); this.muK=new Float64Array(NV);
+    this.nfr=new Int32Array(NV); this.fi=new Float64Array(NV*5); this.fp=new Float64Array(NV*5);
+    this.nb=new Float64Array(NV*3); this.ns=new Float64Array(NV*4); this.rng=22222;
+    this.relK=Math.exp(-1/(0.05*sr));
+    this.nzK=Math.pow(0.0001/0.22,1/(0.4*sr)); this.nzN=Math.round(0.4*sr);  /* NOISE: 0.22 to 0.0001 in 0.4 s */
+    this.cutK=Math.exp(-1/(0.003*sr));
+    this.gravK=1-Math.exp(-1/(0.8*sr)); this.bendK=1-Math.exp(-1/(0.01*sr));
+    /* DRONE: saws at 55 and 58.3 Hz, 0.15 Hz tremolo, in on tau 0.5 s, out on tau 0.3 s */
+    this.dEnv=0; this.dPh1=0; this.dPh2=0; this.tPh=0;
+    this.dUp=1-Math.exp(-1/(0.5*sr)); this.dDn=1-Math.exp(-1/(0.3*sr));
+    /* slots: the face owns the audio and loads it here; takes are recorded in place.
+       sPlay 0 stopped · 1 playing · 2 cued for the downbeat; sAmp fades 4 ms either way */
+    this.sBuf=[null,null,null,null,null,null,null,null]; this.sLen=new Int32Array(NS);
+    this.sInc=new Float64Array(NS).fill(1); this.sPos=new Float64Array(NS); this.sPlay=new Uint8Array(NS); this.sAmp=new Float64Array(NS);
+    this.rBuf=[null,null,null,null,null,null,null,null]; this.rPos=new Int32Array(NS); this.rLen=new Int32Array(NS);
+    this.rArm=new Uint8Array(NS); this.recAct=0; this.dirty=0;
+    this.lv=PD0[LVL]; this.lvK=1-Math.exp(-1/(0.01*sr));
+    this.stPos=0; this.stOff=0; this.stLen=Math.round(0.08*sr);
+    /* BEND chain state */
+    this.bendNow=0; this.dx1=0; this.dF1=0; this.shC=0; this.shV=0;
+    this.eLen=Math.max(128,Math.round(0.25*sr)); this.eBuf=new Float64Array(this.eLen); this.eW=0;
+    this.vPh=0; this.vx1=0; this.vx2=0; this.vy1=0; this.vy2=0;
+    /* biquad coefficients: [0..4] scope lowpass, [5..9] VACUUM lowpass  (b0 b1 b2 a1 a2) */
+    this.cf=new Float64Array(10);
+    /* scope: the active point's X/Y, smoothed like r11's setTargetAtTime (tau 50 ms) */
+    const x=PD0[RDX], y=PD0[RDY];
+    this.cut=50*Math.pow(240,y); this.pan=x*2-1; this.dryG=1-x*0.3; this.wetG=x*0.6; this.rg=0.2+y;
+    this.k50=1-Math.exp(-1/(0.05*sr));
+    this.lx1=0; this.lx2=0; this.ly1=0; this.ly2=0;
+    /* the reverb */
+    const ks=sr/48000;
+    this.fOff=new Int32Array(8); this.fLen=new Int32Array(8); this.fIdx=new Int32Array(8);
+    this.fG=new Float64Array(8); this.fLp=new Float64Array(8); this.fo=new Float64Array(8);
+    let tot=0, mx=0;
+    for(let j=0;j<8;j++){ const n=Math.max(8,Math.round(FDN[j]*ks)); this.fOff[j]=tot; this.fLen[j]=n; tot+=n; if(n>mx) mx=n; this.fG[j]=Math.pow(10,-3*n/(sr*1.4)); }
+    this.fBuf=new Float32Array(tot);
+    this.aOff=new Int32Array(4); this.aLen=new Int32Array(4); this.aIdx=new Int32Array(4);
+    let at=0; for(let j=0;j<4;j++){ const n=Math.max(4,Math.round(DIF[j]*ks)); this.aOff[j]=at; this.aLen[j]=n; at+=n; }
+    this.aBuf=new Float32Array(at);
+    this.fHold=2*mx+at; this.fDamp=1-Math.exp(-TAU*9000/sr);
+    /* PHANTOM: two heads read 350 ms windows backwards, crossfaded so they always sum to one */
+    const W=Math.max(16,Math.round(0.35*sr)); this.pW=W; this.pM=2*W+2;
+    this.pL=new Float32Array(this.pM); this.pR=new Float32Array(this.pM); this.pwin=new Float32Array(W);
+    for(let i=0;i<W;i++){ const s=Math.sin(Math.PI*i/W); this.pwin[i]=s*s; }
+    this.pw=0; this.pc0=0; this.pc1=W>>1; this.pa0=this.pM-1; this.pa1=this.pM-1; this.sPh=0;
+    this.holdE=0; this.holdP=0; this.holdF=0;
+    this.lg=1; this.lgT=1; this.lpk=0; this.lct=0; this.lAtt=1-Math.exp(-1/(0.003*sr)); this.lRel=1-Math.exp(-1/(0.15*sr));
+    /* the sequencer: a countdown to the next step, another to the gate closing */
+    this.run=0; this.req=-1; this.startAt=-1; this.cnt=0; this.gcnt=-1; this.step=0; this.snote=-1; this.frm=0;
+    this.txStep=-1; this.txRun=-1;
+    /* what goes back to the face: one array, reused */
+    this.tx=['',0,0,0];
+    this.quiet=0;
+    this.port.onmessage=e=>this.msg(e.data);
+  }
+  tell(a, b, c, d){ const t=this.tx; t[0]=a; t[1]=b; t[2]=c; t[3]=d; try{ this.port.postMessage(t); }catch(_){} }
+  msg(m){
+    if(!m||typeof m.length!=='number'||m.length<1) return;
+    this.quiet=0;
+    const c=m[0];
+    if(c==='p'){
+      const i=m[1]|0, v=+m[2];
+      if(i>=0&&i<NP&&v===v){
+        const d=PDEF[i]; this.p[i]=v<d.a?d.a:(v>d.b?d.b:v);
+        if(i===BND){ const b=ix(this.p[i],6); if(b!==this.bendNow){ this.bendNow=b; this.fxReset(); } }
+      }
+    }
+    else if(c==='on') this.on(m[1]|0, +m[2], m[3]|0);
+    else if(c==='off') this.off(m[1]|0, m[2]|0);
+    else if(c==='bend') this.bend(m[1]|0, +m[2]);
+    else if(c==='play'){
+      /* RUN and STOP land on a block edge; atTime is the enclosure's clock, in its seconds */
+      const t=m[2]; this.req=m[1]?1:0;
+      this.startAt=(m[1]&&typeof t==='number'&&t>=0&&t<1e7)?Math.round(t*this.sr):-1;
+    }
+    else if(c==='panic'){ this.panic(); this.tell('panic',0,0,0); }
+    else if(c==='smp') this.smp(m);
+  }
+  on(n, vel, hw){
+    if(!(n>=0&&n<128)) return;
+    vel=(vel===vel)?(vel<0?0:(vel>1?1:vel)):0.8;
+    hw=(hw===1||hw===2)?hw:0;
+    if(vel<=0){ this.off(n, hw); return; }
+    /* the voice: the same note from the same source, else a silent one, else the oldest released,
+       else the oldest held. "oldest" is a note-on count, so a chord inside one block steals in order */
+    let same=-1, free=-1, rel=-1, held=-1;
+    for(let k=0;k<NV;k++){
+      if(this.stage[k]&&this.note[k]===n&&this.how[k]===hw){ same=k; break; }
+      if(!this.stage[k]){ if(free<0) free=k; }
+      else if(!this.gate[k]){ if(rel<0||this.age[k]<this.age[rel]) rel=k; }
+      else if(held<0||this.age[k]<this.age[held]) held=k;
+    }
+    const v=same>=0?same:(free>=0?free:(rel>=0?rel:held));
+    const p=this.p, sr=this.sr, top=sr*0.45;
+    /* how: 0 a live key or MIDI, 1 a sequencer step, 2 a clean-DTMF hit — r11 played steps on the
+       selected engine and only live keys took MIRROR, the scope's pitch, FRACTURE and GRAVITY */
+    const t=ix(p[TUN],3), g=hw===2?0:ix(p[ENG],4);
+    const key=((n-60)%12+12)%12, r=(key/3)|0, cc=key%3;
+    let oct=Math.floor((n-60)/12); if(oct<-4) oct=-4; if(oct>3) oct=3;
+    let rf, cf;
+    if(t===2){ const st=p[CST]; rf=p[CRW]*Math.pow(st,r); cf=p[CCL]*Math.pow(st,cc); }
+    else { rf=ROWS[t*4+r]; cf=COLS[t*3+cc]; }
+    if(oct!==0){ const s=Math.pow(2,oct); rf*=s; cf*=s; }
+    if(hw===0){
+      if(p[MIR]>0.5){ const s=rf; rf=cf; cf=s; }
+      const semi=Math.round((p[RDX]-0.5)*24);
+      if(semi!==0){ const s=Math.pow(2,semi/12); rf*=s; cf*=s; }
+    }
+    if(rf>top) rf=top; if(cf>top) cf=top; if(rf<5) rf=5; if(cf<5) cf=5;
+    const was=this.stage[v]?this.env[v]:0;
+    this.note[v]=n; this.how[v]=hw; this.eng[v]=g; this.gate[v]=1; this.age[v]=++this.seq;
+    this.fr[v]=rf; this.fc[v]=cf; this.dev[v]=rf*1.5;
+    if(!was){ this.ph1[v]=0; this.ph2[v]=0; }
+    this.mu[v]=1; this.muT[v]=1; this.muK[v]=0;
+    const pk=PEAK[g]*vel; this.pk[v]=pk;
+    if(g===2){
+      /* NOISE: a band-passed burst, centre rf, Q max(0.5, cf/rf), from full level down over 0.4 s */
+      this.env[v]=pk; this.stage[v]=4; this.en[v]=this.nzN;
+      const Q=Math.max(0.5,cf/rf), w=TAU*rf/sr, al=Math.sin(w)/(2*Q), a0=1+al, c=v*3, j=v*4;
+      this.nb[c]=al/a0; this.nb[c+1]=-2*Math.cos(w)/a0; this.nb[c+2]=(1-al)/a0;
+      this.ns[j]=0; this.ns[j+1]=0; this.ns[j+2]=0; this.ns[j+3]=0;
+    }else{
+      /* ATTACK: from 0.0001 (or where a retriggered voice already is) up to the peak — 7 ms at
+         the default, as r11's 8 ms ramp; the slider runs 1.5 ms to 3 s */
+      const aN=Math.max(1,Math.round(0.0015*Math.pow(2000,p[ATK])*sr));
+      const e0=was>0.0001?was:0.0001;
+      this.env[v]=e0; this.stage[v]=1; this.en[v]=aN; this.ek[v]=Math.pow(pk/e0,1/aN);
+      if(hw===0&&p[GRV]>0.5){ this.muT[v]=0.5; this.muK[v]=this.gravK; }  /* GRAVITY: sink to half, tau 0.8 s */
+    }
+    let nf=0;
+    if(hw===0&&p[FRC]>0.5){
+      const q=v*5;
+      for(let k=0;k<4;k++){ this.fi[q+k]=Math.min(rf*FRAC[k],top)/sr; this.fp[q+k]=0; }
+      nf=4;
+      if(g!==2){ this.fi[q+4]=Math.min(cf*FRAC[4],top)/sr; this.fp[q+4]=0; nf=5; }
+    }
+    this.nfr[v]=nf;
+    this.quiet=0;
+  }
+  off(n, hw){
+    hw=(hw===1||hw===2)?hw:0;
+    for(let k=0;k<NV;k++){
+      if(this.note[k]!==n||this.how[k]!==hw||!this.gate[k]) continue;
+      this.gate[k]=0;
+      const st=this.stage[k];
+      if(st===1||st===2) this.stage[k]=3; else if(st===4) this.stage[k]=5;
+    }
+  }
+  /* the gesture zone: a held key dragged sideways, +-200 cents, glide tau 10 ms (NOISE has no pitch) */
+  bend(n, cents){
+    if(cents!==cents) return;
+    if(cents<-200) cents=-200; if(cents>200) cents=200;
+    for(let k=0;k<NV;k++){
+      if(this.note[k]!==n||this.how[k]!==0||!this.gate[k]||this.eng[k]===2) continue;
+      this.muT[k]=Math.pow(2,cents/1200); this.muK[k]=this.bendK;
+    }
+  }
+  kill(v){ this.stage[v]=0; this.gate[v]=0; this.env[v]=0; this.note[v]=-1; this.nfr[v]=0; }
+  /* PANIC: every voice and slot stops now, DRONE / PHANTOM / STUTTER go off, every tail is
+     cleared and an armed take is called off. The transport is the rack's (or the face's) to stop */
+  panic(){
+    for(let k=0;k<NV;k++) this.kill(k);
+    this.snote=-1; this.gcnt=-1;
+    for(let k=0;k<NS;k++){
+      if(this.sPlay[k]){ this.sPlay[k]=0; this.mark(k); }
+      this.sAmp[k]=0;
+      if(this.rBuf[k]&&this.rArm[k]){ this.rBuf[k]=null; this.rArm[k]=0; this.mark(k); }
+    }
+    this.p[DRN]=0; this.dEnv=0; this.p[PHM]=0; this.sPh=0; this.p[STU]=0;
+    this.eBuf.fill(0); this.pL.fill(0); this.pR.fill(0); this.fBuf.fill(0); this.aBuf.fill(0); this.fLp.fill(0);
+    this.vx1=0; this.vx2=0; this.vy1=0; this.vy2=0; this.lx1=0; this.lx2=0; this.ly1=0; this.ly2=0;
+    this.dx1=0; this.dF1=0; this.shV=0; this.holdE=0; this.holdP=0; this.holdF=0;
+  }
+  mark(i){ this.dirty|=1<<i; }
+  /* 0 empty · 1 ready · 2 playing · 3 recording · 4 armed for the downbeat · 5 cued for the downbeat */
+  slotState(i){
+    if(this.rBuf[i]) return this.rArm[i]?4:3;
+    const s=this.sPlay[i];
+    if(s===1) return 2;
+    if(s===2) return 5;
+    return (this.sBuf[i]&&this.sLen[i]>1)?1:0;
+  }
+  smp(m){
+    const op=m[1], k=m[2]|0;
+    if(!(k>=0&&k<NS)) return;
+    if(op==='rec'){
+      /* while the sequence runs a take waits for the downbeat and lasts one bar; stopped, it
+         starts now and lasts as long as asked (r11: 2 s) */
+      let s=+m[3]; if(!(s>0)) s=2; if(s>8) s=8;
+      if(this.rBuf[k]&&!this.rArm[k]) this.recAct--;
+      this.sPlay[k]=0;
+      if(this.run){ this.rBuf[k]=new Float32Array(Math.round(8*this.sr)); this.rArm[k]=1; this.rLen[k]=0; }
+      else { const n=Math.max(1,Math.round(s*this.sr)); this.rBuf[k]=new Float32Array(n); this.rArm[k]=0; this.rLen[k]=n; this.recAct++; }
+      this.rPos[k]=0; this.quiet=0; this.mark(k);
+    }else if(op==='get'){
+      if(this.rBuf[k]&&!this.rArm[k]) this.recEnd(k);
+      const b=this.sBuf[k], n=this.sLen[k];
+      let out=null;
+      if(b&&n>1){ out=n===b.length?b:b.slice(0,n); this.sBuf[k]=out; }
+      try{ this.port.postMessage(['smp','buf',k,out,this.sr]); }catch(_){}
+    }else if(op==='load'){
+      const b=m[3], r=+m[4];
+      if(b instanceof Float32Array&&b.length>1){ this.sBuf[k]=b; this.sLen[k]=b.length; this.sInc[k]=(r>0)?r/this.sr:1; this.sPos[k]=0; this.sPlay[k]=0; this.sAmp[k]=0; this.mark(k); }
+    }else if(op==='start'){
+      if(this.sBuf[k]&&this.sLen[k]>1){ this.sPos[k]=0; this.sPlay[k]=this.run?2:1; this.quiet=0; this.mark(k); }
+    }else if(op==='stop'){
+      if(this.sPlay[k]){ this.sPlay[k]=0; this.mark(k); }
+    }else if(op==='clr'){
+      this.sPlay[k]=0; this.sAmp[k]=0; this.sBuf[k]=null; this.sLen[k]=0;
+      if(this.rBuf[k]){ if(!this.rArm[k]) this.recAct--; this.rBuf[k]=null; this.rArm[k]=0; }
+      this.mark(k);
+    }
+  }
+  /* a take is done: it becomes the slot, its ends faded so the loop does not click */
+  recEnd(k){
+    const rb=this.rBuf[k]; if(!rb) return;
+    const n=this.rPos[k];
+    if(!this.rArm[k]) this.recAct--;
+    this.rBuf[k]=null; this.rArm[k]=0;
+    if(n>=512){
+      for(let j=0;j<256;j++){ const g=j/256; rb[j]*=g; rb[n-1-j]*=g; }
+      this.sBuf[k]=rb; this.sLen[k]=n;
+    }else{ this.sBuf[k]=null; this.sLen[k]=0; }
+    this.sInc[k]=1; this.sPos[k]=0; this.sPlay[k]=0; this.sAmp[k]=0;
+    this.mark(k);
+  }
+  fxReset(){
+    this.eBuf.fill(0); this.eW=0; this.holdE=0;
+    this.vx1=0; this.vx2=0; this.vy1=0; this.vy2=0; this.vPh=0;
+    this.shC=0; this.shV=0; this.dx1=0; this.dF1=0;
+  }
+  /* a lowpass in the Web Audio form (Q as 10^(dB/20)) into cf[o..o+4] */
+  lp(o, f, qa){
+    const sr=this.sr; if(f>sr*0.49) f=sr*0.49; if(f<10) f=10;
+    const w=TAU*f/sr, cw=Math.cos(w), al=Math.sin(w)/(2*qa), a0=1+al, cf=this.cf;
+    cf[o]=(1-cw)*0.5/a0; cf[o+1]=(1-cw)/a0; cf[o+2]=cf[o]; cf[o+3]=-2*cw/a0; cf[o+4]=(1-al)/a0;
+  }
+  /* ═ the sequencer ═ steps are sixteenths; SWING lengthens the even ones and shortens the odd */
+  stepDur(k){
+    const L=this.sr*15/this.p[BPM], sw=this.p[SWG];
+    return (k&1)?L*(1-sw):L*(1+sw);
+  }
+  transport(now){
+    const r=this.req; this.req=-1;
+    if(r===1){
+      this.seqRelease(); this.run=1; this.step=0; this.gcnt=-1; this.quiet=0;
+      const at=this.startAt; this.startAt=-1;
+      const d=at>=0?at-now:0;
+      if(d>=0) this.cnt=d;
+      else{
+        let late=-d;
+        if(late<0.03*this.sr||late>600*this.sr) this.cnt=0;
+        else{
+          /* the downbeat is long gone: join the rack's bar where it is now */
+          let k=0, g=0; const n=this.seqLen();
+          for(;;){ const du=this.stepDur(k); if(late<du||g>20000){ this.cnt=du-late; break; } late-=du; k=(k+1)%n; g++; }
+          this.step=(k+1)%n;
+        }
+      }
+      this.txRun=1;
+    }else if(r===0){
+      const was=this.run; this.run=0; this.seqRelease(); this.gcnt=-1; this.txRun=0;
+      if(was) this.armNow();
+    }
+  }
+  /* LENGTH: how many of the sixteen steps the loop plays. Slid shorter while it runs, a step the loop no longer
+     reaches wraps to the first, on the beat it would have fallen */
+  seqLen(){ const n=Math.round(this.p[LEN]); return n<1?1:(n>16?16:n); }
+  seqTrigger(){
+    const n=this.seqLen(); let k=this.step; if(k>=n) k=0;
+    const du=this.stepDur(k);
+    this.cnt+=du;
+    this.seqRelease();
+    const s=(this.p[ST0+k]+0.5)|0;
+    if(s>=1&&s<=12){ this.on(59+s,1,1); this.snote=59+s; this.gcnt=du*this.p[GAT]; }
+    else this.gcnt=-1;
+    if(k===0) this.downbeat();
+    this.txStep=k; this.step=(k+1)%n;
+  }
+  seqRelease(){ if(this.snote>=0){ this.off(this.snote,1); this.snote=-1; } }
+  /* the downbeat: cued slots start, armed takes begin and last one bar */
+  downbeat(){
+    for(let i=0;i<NS;i++){
+      if(this.sPlay[i]===2){ this.sPlay[i]=1; this.sPos[i]=0; this.mark(i); }
+      const rb=this.rBuf[i];
+      if(rb&&this.rArm[i]){
+        const bar=Math.round(240*this.sr/this.p[BPM]);
+        this.rArm[i]=0; this.rPos[i]=0; this.rLen[i]=bar<rb.length?bar:rb.length; this.recAct++; this.mark(i);
+      }
+    }
+  }
+  /* the transport stopped: what was waiting for a downbeat starts now (a take lasts 2 s) */
+  armNow(){
+    for(let i=0;i<NS;i++){
+      if(this.sPlay[i]===2){ this.sPlay[i]=1; this.sPos[i]=0; this.mark(i); }
+      const rb=this.rBuf[i];
+      if(rb&&this.rArm[i]){
+        const two=Math.round(2*this.sr);
+        this.rArm[i]=0; this.rPos[i]=0; this.rLen[i]=two<rb.length?two:rb.length; this.recAct++; this.mark(i);
+      }
+    }
+  }
+  flush(){
+    if(this.txRun>=0){ this.tell('run',this.txRun,0,0); this.txRun=-1; }
+    if(this.txStep>=0){ this.tell('st',this.txStep,0,0); this.txStep=-1; }
+    if(this.dirty){
+      const d=this.dirty; this.dirty=0;
+      for(let i=0;i<NS;i++) if(d&(1<<i)) this.tell('sl',i,this.slotState(i),Math.round(this.sLen[i]/this.sr*100)/100);
+    }
+  }
+  process(inputs, outputs){
+    const o=outputs[0];
+    if(!o||!o.length) return true;
+    const L=o[0], R=o.length>1?o[1]:null, N=L.length;
+    const now=(typeof currentFrame==='number')?currentFrame:this.frm;
+    this.frm=now+N;
+    try{
+      if(this.req>=0) this.transport(now);
+      /* asleep when silent: one comparison a block, no arithmetic — the sequencer's clock still counts */
+      if(this.quiet>8&&this.recAct===0&&!(this.run&&this.cnt<N)){
+        L.fill(0); if(R) R.fill(0);
+        if(this.run){ this.cnt-=N; if(this.gcnt>=0){ this.gcnt-=N; if(this.gcnt<0) this.seqRelease(); } }
+        this.flush();
+        return true;
+      }
+      this.render(L, R, N);
+      this.flush();
+    }catch(_){ L.fill(0); if(R) R.fill(0); }
+    return true;
+  }
+  render(L, R, N){
+    const p=this.p, sr=this.sr, isr=this.isr;
+    const stage=this.stage, gate=this.gate, how=this.how, eng=this.eng, env=this.env, ek=this.ek, en=this.en, pk=this.pk;
+    const fr=this.fr, fc=this.fc, dev=this.dev, ph1=this.ph1, ph2=this.ph2, mu=this.mu, muT=this.muT, muK=this.muK;
+    const nfr=this.nfr, fi=this.fi, fp=this.fp, nb=this.nb, ns=this.ns, cf=this.cf;
+    const sPlay=this.sPlay, sPos=this.sPos, sInc=this.sInc, sAmp=this.sAmp, sLen=this.sLen, sStep=1/(0.004*sr);
+    const fBuf=this.fBuf, fOff=this.fOff, fLen=this.fLen, fIdx=this.fIdx, fG=this.fG, fLp=this.fLp, fo=this.fo, fDamp=this.fDamp;
+    const aBuf=this.aBuf, aOff=this.aOff, aLen=this.aLen, aIdx=this.aIdx;
+    const pL=this.pL, pR=this.pR, pwin=this.pwin, pW=this.pW, pM=this.pM;
+    /* ═ block rate ═ */
+    const relK=Math.exp(-1/(sr*0.005*Math.pow(400,p[REL])));   /* RELEASE: tau 5 ms to 2 s; 49 ms at the default, as r11 */
+    const bend=this.bendNow, amt=p[AMT], droneOn=p[DRN]>0.5, stuOn=p[STU]>0.5;
+    const tw=p[TWI], twR=tw>1e-6?Math.pow(10,-tw*TW_DB/20):1, twC=tw<-1e-6?Math.pow(10,tw*TW_DB/20):1;
+    let held=0, anyS=0;
+    for(let v=0;v<NV;v++) if(gate[v]&&how[v]===0) held++;
+    for(let k=0;k<NS;k++) if(sPlay[k]===1||sAmp[k]>0) anyS=1;
+    /* BEND, by AMOUNT (0.5 is r11's setting): drive tanh(8x), 4 bits held 12 samples, echo feedback 0.4,
+       vacuum swept 800 +- 400 Hz at Q 8 dB */
+    const bD=bend===1||bend===3, bC=bend===2||bend===3, bE=bend===4, bV=bend===5;
+    const dk=1+14*amt, dT=Math.tanh(dk), dKT=1/(dk*dT);
+    const qz=Math.pow(2,6-4*amt), shN=1+Math.round(22*amt), efb=0.2+0.4*amt;
+    if(bV){ this.vPh+=N*0.3*isr; if(this.vPh>=1) this.vPh-=1; this.lp(5, 800+800*amt*Math.sin(TAU*this.vPh), Math.pow(10,0.8*amt)); }
+    /* the scope (r11 radarApply): X pan / reverb / dry, Y cutoff / gain */
+    const x=p[RDX], y=p[RDY], kb=1-Math.exp(-N/(0.05*sr));
+    this.cut+=(50*Math.pow(240,y)-this.cut)*kb;
+    this.pan+=((x*2-1)-this.pan)*kb;
+    this.lp(0, this.cut, QS);
+    const pn=this.pan, neg=pn<=0, px=(neg?pn+1:pn)*Math.PI*0.5, pA=Math.cos(px), pB=Math.sin(px);
+    const dryT=1-x*0.3, wetT=x*0.6, rgT=0.2+y, k50=this.k50;
+    this.sPh+=((p[PHM]>0.5?1:0)-this.sPh)*kb;
+    const phMix=0.9*this.sPh, phFb=0.45*this.sPh;
+    const run=this.run;
+    let peak=0, ePk=0, pPk=0, fPk=0;
+    for(let i=0;i<N;i++){
+      /* ═ the sequencer's clock ═ */
+      if(run){
+        if(this.gcnt>=0){ this.gcnt-=1; if(this.gcnt<0) this.seqRelease(); }
+        if(this.cnt<=0) this.seqTrigger();
+        this.cnt-=1;
+      }
+      /* ═ voices ═ */
+      let m=0;
+      for(let v=0;v<NV;v++){
+        const st=stage[v]; if(st===0) continue;
+        let e=env[v];
+        if(st===1){ e*=ek[v]; if(--en[v]<=0){ e=pk[v]; stage[v]=2; } }
+        else if(st===3){ e*=relK; if(e<2e-5){ this.kill(v); continue; } }
+        else if(st===4){ e*=this.nzK; if(--en[v]<=0){ this.kill(v); continue; } }
+        else if(st===5){ e*=this.cutK; if(e<2e-5){ this.kill(v); continue; } }
+        env[v]=e;
+        let u=mu[v]; u+=(muT[v]-u)*muK[v]; mu[v]=u;
+        const g=eng[v]; let s;
+        if(g===2){
+          let r=this.rng; r^=r<<13; r^=r>>>17; r^=r<<5; this.rng=r;
+          const w=(r|0)*4.656612873077393e-10, c=v*3, j=v*4;
+          const yv=nb[c]*(w-ns[j+1])-nb[c+1]*ns[j+2]-nb[c+2]*ns[j+3];
+          ns[j+1]=ns[j]; ns[j]=w; ns[j+3]=ns[j+2]; ns[j+2]=yv;
+          s=yv;
+        }else{
+          let b=ph2[v]+fc[v]*u*isr; if(b>=1) b-=1; ph2[v]=b;
+          const sb=sn(b);
+          /* FM: r11's modulator drives the carrier's frequency, depth rf*1.5 Hz */
+          let a=ph1[v]+(g===1?fr[v]*u+dev[v]*sb:fr[v]*u)*isr; if(a>=1||a<0) a-=Math.floor(a); ph1[v]=a;
+          s=g===3?sn(a)*0.5*sb:(g===1?sn(a):sn(a)*twR+sb*twC);
+        }
+        const nf=nfr[v];
+        if(nf>0){ const q=v*5, wr=g===0?twR:1, wc=g===0?twC:1; for(let k=0;k<nf;k++){ let f=fp[q+k]+fi[q+k]; if(f>=1) f-=1; fp[q+k]=f; s+=sn(f)*(k<4?wr:wc); } }
+        m+=s*e;
+      }
+      /* ═ DRONE ═ */
+      if(droneOn||this.dEnv>0){
+        let de=this.dEnv; de+=((droneOn?0.06:0)-de)*(droneOn?this.dUp:this.dDn);
+        if(!droneOn&&de<1e-6) de=0;
+        this.dEnv=de;
+        const t1=55*isr, t2=58.3*isr;
+        let a=this.dPh1+t1; if(a>=1) a-=1; this.dPh1=a;
+        let b=this.dPh2+t2; if(b>=1) b-=1; this.dPh2=b;
+        let s1=2*a-1; if(a<t1){ const q=a/t1; s1-=q+q-q*q-1; } else if(a>1-t1){ const q=(a-1)/t1; s1-=q*q+q+q+1; }
+        let s2=2*b-1; if(b<t2){ const q=b/t2; s2-=q+q-q*q-1; } else if(b>1-t2){ const q=(b-1)/t2; s2-=q*q+q+q+1; }
+        let tp=this.tPh+0.15*isr; if(tp>=1) tp-=1; this.tPh=tp;
+        m+=(s1+s2)*de*(1+0.5*sn(tp));
+      }
+      /* ═ slots: looped, faded 4 ms in and out ═ */
+      if(anyS){
+        for(let k=0;k<NS;k++){
+          let ga=sAmp[k];
+          if(sPlay[k]===1){ if(ga<1){ ga+=sStep; if(ga>1) ga=1; sAmp[k]=ga; } }
+          else if(ga>0){ ga-=sStep; if(ga<0) ga=0; sAmp[k]=ga; }
+          else continue;
+          const sb=this.sBuf[k], n=sLen[k];
+          if(!sb||n<2){ sAmp[k]=0; continue; }
+          let q=sPos[k]; if(q>=n) q%=n;
+          const i0=q|0, i1=i0+1<n?i0+1:0;
+          m+=(sb[i0]+(sb[i1]-sb[i0])*(q-i0))*ga;
+          q+=sInc[k]; if(q>=n) q%=n; sPos[k]=q;
+        }
+      }
+      /* ═ LEVEL (r11 masterGain); the slot recorder taps here ═ */
+      this.lv+=(p[LVL]-this.lv)*this.lvK;
+      const x0=m*this.lv;
+      if(this.recAct>0){
+        for(let k=0;k<NS;k++){
+          const rb=this.rBuf[k]; if(!rb||this.rArm[k]) continue;
+          const q=this.rPos[k];
+          if(q<this.rLen[k]){ rb[q]=x0; this.rPos[k]=q+1; }
+          if(q+1>=this.rLen[k]) this.recEnd(k);
+        }
+      }
+      /* ═ STUTTER: r11 closed the gate for 40 ms + 10 ms per held key on an 80 ms clock. Past
+         80 ms the old timeline overlapped itself (a short gap, not a long one) and at exactly
+         four keys it never reopened — that one case now leaves a 10 ms window ═ */
+      let xf=x0;
+      if(stuOn){
+        if(this.stPos===0){
+          const rr=40+(held*10<80?held*10:80), c=rr<80?rr:(rr>80?rr-80:70);
+          this.stOff=Math.round(c*0.001*sr);
+        }
+        if(this.stPos<this.stOff) xf=0;
+        if(++this.stPos>=this.stLen) this.stPos=0;
+      }else this.stPos=0;
+      /* ═ BEND ═ */
+      if(bend!==0){
+        if(bD){
+          /* DRIVE: tanh with first-order antiderivative anti-aliasing (the alternate's) */
+          const uu=dk*xf, au=uu<0?-uu:uu;
+          const F=(au+Math.log1p(Math.exp(-2*au))-0.6931471805599453)*dKT;
+          const dd=xf-this.dx1;
+          const yd=(dd>1e-7||dd<-1e-7)?(F-this.dF1)/dd:Math.tanh(dk*0.5*(xf+this.dx1))/dT;
+          this.dx1=xf; this.dF1=F; xf=yd;
+        }
+        if(bC){
+          /* GLITCH then CRUSH: AMOUNT 0.5 is r11's 4 bits held 12 samples */
+          xf=Math.round(xf*qz)/qz;
+          if(--this.shC<=0){ this.shC=shN; this.shV=xf; }
+          xf=this.shV;
+        }else if(bE){
+          /* ECHO: 250 ms, all wet as r11 wired it; AMOUNT sets the feedback (0.4 at 0.5) */
+          const eb=this.eBuf, w=this.eW, yv=eb[w];
+          let wv=xf+efb*yv; if(wv<1e-15&&wv>-1e-15) wv=0;
+          eb[w]=wv; this.eW=w+1<this.eLen?w+1:0;
+          const aw=wv<0?-wv:wv; if(aw>ePk) ePk=aw;
+          xf=yv;
+        }else if(bV){
+          const yv=cf[5]*xf+cf[6]*this.vx1+cf[7]*this.vx2-cf[8]*this.vy1-cf[9]*this.vy2;
+          this.vx2=this.vx1; this.vx1=xf; this.vy2=this.vy1; this.vy1=yv; xf=yv;
+        }
+      }
+      if(xf-xf!==0) xf=0;
+      /* ═ the scope: lowpass -> dry ═ */
+      const d0=cf[0]*xf+cf[1]*this.lx1+cf[2]*this.lx2-cf[3]*this.ly1-cf[4]*this.ly2;
+      this.lx2=this.lx1; this.lx1=xf; this.ly2=this.ly1; this.ly1=d0;
+      this.dryG+=(dryT-this.dryG)*k50; this.wetG+=(wetT-this.wetG)*k50; this.rg+=(rgT-this.rg)*k50;
+      /* ═ wet: four diffusers, then eight lines through a Hadamard mix ═ */
+      let rv=xf*0.3;
+      const ar0=rv<0?-rv:rv; if(ar0>fPk) fPk=ar0;
+      for(let j=0;j<4;j++){
+        const k2=aOff[j]+aIdx[j], d=aBuf[k2], w=rv-0.6*d;
+        rv=d+0.6*w; aBuf[k2]=w; if(++aIdx[j]>=aLen[j]) aIdx[j]=0;
+      }
+      for(let j=0;j<8;j++){
+        const d=fBuf[fOff[j]+fIdx[j]], lpv=fLp[j]+(d-fLp[j])*fDamp;
+        fLp[j]=lpv; fo[j]=lpv;
+        const al=lpv<0?-lpv:lpv; if(al>fPk) fPk=al;
+      }
+      const wl=(fo[0]-fo[2]+fo[4]-fo[6])*0.5, wr=(fo[1]-fo[3]+fo[5]-fo[7])*0.5;
+      for(let h=1;h<8;h<<=1){
+        for(let a0=0;a0<8;a0+=h<<1){
+          for(let b0=a0;b0<a0+h;b0++){ const s=fo[b0], t=fo[b0+h]; fo[b0]=s+t; fo[b0+h]=s-t; }
+        }
+      }
+      for(let j=0;j<8;j++){
+        fBuf[fOff[j]+fIdx[j]]=rv+fG[j]*fo[j]*0.35355339059327373;
+        if(++fIdx[j]>=fLen[j]) fIdx[j]=0;
+      }
+      const inL=d0*this.dryG+wl*this.wetG, inR=d0*this.dryG+wr*this.wetG;
+      /* r11's StereoPannerNode, stereo-input law */
+      let oL, oR;
+      if(neg){ oL=inL+inR*pA; oR=inR*pB; } else { oL=inL*pA; oR=inR+inL*pB; }
+      /* ═ PHANTOM: the echoes fall backwards — two heads read 350 ms windows in reverse,
+         crossfaded so they sum to one, fed back at 0.45 and laid over the dry ═ */
+      {
+        let c0=this.pc0, c1=this.pc1;
+        const wp=this.pw;
+        if(c0>=pW){ c0=0; this.pa0=wp>0?wp-1:pM-1; }
+        if(c1>=pW){ c1=0; this.pa1=wp>0?wp-1:pM-1; }
+        let r0=this.pa0-c0; if(r0<0) r0+=pM;
+        let r1=this.pa1-c1; if(r1<0) r1+=pM;
+        const w0=pwin[c0], w1=pwin[c1];
+        const hl=pL[r0]*w0+pL[r1]*w1, hr=pR[r0]*w0+pR[r1]*w1;
+        const il=oL+phFb*hl, ir=oR+phFb*hr;
+        pL[wp]=il; pR[wp]=ir;
+        const ai=(il<0?-il:il)+(ir<0?-ir:ir); if(ai>pPk) pPk=ai;
+        this.pw=wp+1>=pM?0:wp+1; this.pc0=c0+1; this.pc1=c1+1;
+        oL+=phMix*hl; oR+=phMix*hr;
+      }
+      /* ═ scope gain, then r11's limiter (its target re-read from the peak every 16 samples) ═ */
+      oL*=this.rg; oR*=this.rg;
+      const aL=oL<0?-oL:oL, aR=oR<0?-oR:oR, a=aL>aR?aL:aR;
+      if(a>this.lpk) this.lpk=a;
+      if(++this.lct>=16){ this.lgT=this.lpk>LIM_T?Math.pow(LIM_T/this.lpk,0.95):1; this.lpk=0; this.lct=0; }
+      const gt=this.lgT;
+      this.lg+=(gt-this.lg)*(gt<this.lg?this.lAtt:this.lRel);
+      const g2=this.lg*LIM_MK; oL*=g2; oR*=g2;
+      if(R){
+        const cl=ceil1(oL), cr=ceil1(oR); L[i]=cl; R[i]=cr;
+        const al=cl<0?-cl:cl, ar=cr<0?-cr:cr; if(al>peak) peak=al; if(ar>peak) peak=ar;
+      }else{
+        const c=ceil1(0.5*(oL+oR)); L[i]=c;
+        const ac=c<0?-c:c; if(ac>peak) peak=ac;
+      }
+    }
+    /* filter states: flush denormals and anything that is not a number, once a block */
+    if(!fin(this.lx1)||!fin(this.ly1)||!fin(this.lx2)||!fin(this.ly2)){ this.lx1=0; this.lx2=0; this.ly1=0; this.ly2=0; }
+    if(this.ly1<1e-15&&this.ly1>-1e-15) this.ly1=0; if(this.ly2<1e-15&&this.ly2>-1e-15) this.ly2=0;
+    if(!fin(this.vy1)||!fin(this.vy2)){ this.vx1=0; this.vx2=0; this.vy1=0; this.vy2=0; }
+    if(this.vy1<1e-15&&this.vy1>-1e-15) this.vy1=0; if(this.vy2<1e-15&&this.vy2>-1e-15) this.vy2=0;
+    if(!fin(this.dx1)||!fin(this.dF1)){ this.dx1=0; this.dF1=0; }
+    for(let j=0;j<8;j++){ const a=fLp[j]; if(!fin(a)||(a<1e-15&&a>-1e-15)) fLp[j]=0; }
+    for(let v=0;v<NV;v++){ if(stage[v]===0){ const j=v*4; ns[j]=0; ns[j+1]=0; ns[j+2]=0; ns[j+3]=0; } }
+    /* tails: hold the engine awake while an echo, a backwards echo or the reverb still rings */
+    this.holdE=ePk>THR?this.eLen+N:(this.holdE>N?this.holdE-N:0);
+    this.holdP=pPk>THR?2*pW+N:(this.holdP>N?this.holdP-N:0);
+    this.holdF=fPk>THR?this.fHold+N:(this.holdF>N?this.holdF-N:0);
+    let any=(droneOn||this.dEnv>0||anyS||this.recAct>0||this.holdE>0||this.holdP>0||this.holdF>0)?1:0;
+    if(!any) for(let v=0;v<NV;v++) if(stage[v]){ any=1; break; }
+    this.quiet=(!any&&peak<THR)?this.quiet+1:0;
+  }
+}
+registerProcessor(PROC, UsrGlitchDial);
+`;
+
+/* ═════════════════════════════════════════════════════════════════════════
+   1 · HOST DETECTION — now the shared header above (SRCD_HOSTED, srcdAdmit,
+   srcdUp, srcdOnlyOurParent). r11's HOSTED / weaveTrusted / esc() went with
+   the weave protocol: nothing from outside is written as markup any more.
+   ═════════════════════════════════════════════════════════════════════════
+
+   ═════════════════════════════════════════════════════════════════════════
+   2 · THΞ RΛCK — power, mount, and the one wire to the worklet
+   ═════════════════════════════════════════════════════════════════════════
+   r11 announced itself up the srcd-omni tier as a weave page (hello / ident
+   with accent #39FFB4, weave-status on every change). Racked as a module,
+   that recoloured the enclosure and gave it a status row it should not have.
+   r12 speaks srcd-duo only, through srcdUp, and owns no colour up there.
+   The face keeps every control's value in state.p (the P table), sends it on
+   change, and sends all of it again whenever the engine comes up. */
+const state = { p: P.map(q => q.d) };
+const PIX = Object.fromEntries(P.map((q, i) => [q.k, i]));   /* 'tun' → 1 … */
+let ctx = null, node = null, powered = false, bootP = null, engineRate = 0;
+const send = (...m) => { if(node) node.port.postMessage(m); };
+function setP(k, v){   /* by key ('tun') or by index (ST0 + step) */
+  const i = typeof k === 'number' ? k : PIX[k], q = P[i];
+  if(!q) return;
+  v = Math.max(q.min, Math.min(q.max, +v));
+  if(!(v === v) || state.p[i] === v) return;
+  state.p[i] = v; send('p', i, v);
+}
+
+/* ═ HØSTΞD: the rack owns the node ═ the worklet SOURCE goes up as text; the rack registers it
+   in the enclosure's one AudioContext and hands back a port that relays through it.
+   30 s to answer, extended by wl-progress up to 90 s; a refusal or a silence FΛILS CLØSΞD —
+   this page never builds a second AudioContext under a rack. */
+function srcdMount(o){
+  return new Promise((res, rej)=>{
+    const t0=Date.now(); let deadline=t0+30000;
+    let to=setTimeout(function tick(){
+      if(Date.now()>=deadline){ window.removeEventListener('message', h); rej(new Error('the rack did not answer wl-mount in 30 s')); }
+      else to=setTimeout(tick, 1000);
+    }, 1000);
+    function h(e){
+      if (window.parent !== window && !srcdAdmit(e)) return;
+      const d=e.data;
+      if(!d || d.src!=='srcd-duo' || d.mod!==SRCD_MOD) return;
+      if(d.cmd==='wl-ready'){
+        clearTimeout(to); window.removeEventListener('message', h);
+        const proxy={ port:{ postMessage(m){ srcdUp({src:'srcd-duo', cmd:'wl-send', mod:SRCD_MOD, m}); }, onmessage:null } };
+        res({ node:proxy, sr:d.sr });
+      } else if(d.cmd==='wl-fail'){
+        clearTimeout(to); window.removeEventListener('message', h); rej(new Error(d.err || 'the rack refused the worklet'));
+      } else if(d.cmd==='wl-progress'){
+        if(Date.now()-t0<90000) deadline=Date.now()+30000;
+      }
+    }
+    window.addEventListener('message', h);
+    srcdUp(Object.assign({src:'srcd-duo', cmd:'wl-mount', mod:SRCD_MOD,
+      preferRate:SRCD_RATES.prefer, minRate:SRCD_RATES.min, maxRate:SRCD_RATES.max}, o));
+  });
+}
+async function srcdBoot(){
+  if(SRCD_HOSTED){
+    const r=await srcdMount({ source:WORKLET_SRC, processor:PROC, opts:{} });
+    return { ctx:null, node:r.node, sr:r.sr };
+  }
+  /* standalone: our own context, made on the gesture that powers us */
+  const c=new (window.AudioContext||window.webkitAudioContext)({ latencyHint:'interactive' });
+  const url=URL.createObjectURL(new Blob([WORKLET_SRC], {type:'application/javascript'}));
+  try{ await c.audioWorklet.addModule(url); } finally{ URL.revokeObjectURL(url); }
+  const n=new AudioWorkletNode(c, PROC, { outputChannelCount:[2] });
+  n.onprocessorerror=()=>{ statusText.textContent = '✕ the engine stopped — its processor threw'; };
+  n.connect(c.destination);
+  if(c.state!=='running'){ try{ await c.resume(); }catch(_){} }
+  return { ctx:c, node:n, sr:c.sampleRate };
+}
+function pwrPaint(){ const b=document.getElementById('pwr'); b.classList.toggle('on', powered); b.setAttribute('aria-pressed', powered?'true':'false'); }
+function pwrSay(){ srcdUp({ src:'srcd-duo', cmd:'pwr-state', mod:SRCD_MOD, on:powered }); }
+/* every caller waits on the same boot, so the key that powered us still sounds */
+function powerOn(){
+  if(powered) return Promise.resolve();
+  if(bootP) return bootP;
+  bootP = (async () => {
+    statusText.textContent = SRCD_HOSTED ? 'POWER · mounting in the rack…' : 'POWER · starting…';
+    try{
+      const r = await srcdBoot();
+      ctx = r.ctx; node = r.node; engineRate = +r.sr || SRCD_RATES.prefer; powered = true;
+      node.port.onmessage = e => fromWorklet(e && e.data);
+      for(let i = 0; i < NP; i++) send('p', i, state.p[i]);
+      for(const [slot, s] of SAMPLES) if(s.data) send('smp', 'load', slot, s.data, s.sr);
+      radarApply();   /* as r11 did when its audio came up: the readout names the active point */
+      /* warm the engine: it sleeps when silent, so the first real key would run the voice, reverb and limiter code cold
+         and crackle. A clean-DTMF note ~94 dB down (inaudible) wakes that code, then lets go; the worklet is untouched */
+      send('on', 60, 0.00002, 2); setTimeout(() => send('off', 60, 2), 400);
+      statusText.textContent = (SRCD_HOSTED ? 'LIVE · RACK · ' : 'LIVE · ') + (Math.round(engineRate / 100) / 10) + ' kHz';
+    }catch(err){
+      statusText.textContent = '✕ ' + String(err && err.message || err);
+    }finally{ bootP = null; pwrPaint(); pwrSay(); }
+  })();
+  return bootP;
+}
+function powerOff(){
+  if(!powered) return;
+  if(node && node.port) node.port.onmessage = null;   /* its panic echo must not clear DRONE / PHANTOM / STUTTER */
+  send('panic');
+  if(SRCD_HOSTED) srcdUp({ src:'srcd-duo', cmd:'wl-kill', mod:SRCD_MOD });
+  else if(ctx){ try{ ctx.close(); }catch(_){} }
+  ctx = null; node = null; powered = false;
+  faceQuiet(); pwrPaint(); pwrSay();
+  statusText.textContent = 'STANDBY · ' + (SRCD_HOSTED ? 'HOSTED' : 'STANDALONE');
+}
+/* r11 started its audio on the first key / glyph / slot gesture — kept STANDALONE, where the browser wants
+   that gesture. In a rack the enclosure owns the AudioContext and its ⏻ (tap-power) is the gesture, and a
+   module that is off makes no sound: a key, glyph, slot or PLAY does not wake it. Every caller already
+   checks `powered` after the await, so each simply does nothing while the module is off. */
+function autoPower(){ return (powered || SRCD_HOSTED) ? Promise.resolve() : powerOn(); }
+
+/* what the worklet says back (r14): whether the loop runs and the step it is on
+   (the rack's transport lands there too), each slot's state, a finished take, a panic */
+function fromWorklet(m){
+  if(!m || !m.length) return;
+  const c = m[0];
+  if(c === 'st'){ const k = m[1] | 0; if(k >= 0 && k < 16) onStep(k); }
+  else if(c === 'run') setRunning(!!m[1]);
+  else if(c === 'sl'){ const i = m[1] | 0, s = m[2] | 0; if(i >= 0 && i < 8 && s >= 0 && s <= 5) onSlot(i, s); }
+  else if(c === 'panic') panicFace();
+  else if(c === 'smp' && m[1] === 'buf'){
+    const slot = m[2] | 0, data = m[3];
+    if(!(slot >= 0 && slot < 8)) return;
+    if(data instanceof Float32Array && data.length > 1){ slotSt[slot] = 1; loadSample(slot, data, +m[4] || engineRate, `rec ${slot + 1}`, true); }
+    else { slotSt[slot] = 0; SAMPLES.delete(slot); statusText.textContent = `slot ${slot + 1} · record failed`; }
+    paintSlot(slot); paintDot();
+  }
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   3 · AUDIO CONTEXT ACQUISITION — r11's ensureAudio(), srcdEnclosureBus
+   adoption and the page-side node graph are gone: under a rack the context
+   is the enclosure's and only wl-mount reaches it (§2); standalone, powerOn()
+   builds one. The graph itself is WORKLET_SRC.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ═════════════════════════════════════════════════════════════════════════
+   4 · DTMF FREQUENCY TABLES
+   ═════════════════════════════════════════════════════════════════════════
+   The 4×4 ITU matrix: 4 row frequencies × 4 column frequencies = 16 tones.
+   Each button is the intersection of one row and one column freq. Pressing
+   a button sounds BOTH simultaneously — that is what makes DTMF a DTMF.
+
+   ROWS: 697, 770, 852, 941 Hz   (the "vertical" group)
+   COLS: 1209, 1336, 1477         (the "horizontal" group; the 4th col 1633
+                                  was reserved for military A/B/C/D modifiers
+                                  — removed in r09, replaced by orbiting glyphs) */
+const DTMF_ROWS  = [697, 770, 852, 941];
+const DTMF_COLS  = [1209, 1336, 1477];
+const DTMF_LABELS = ['1','2','3',
+                     '4','5','6',
+                     '7','8','9',
+                     '*','0','#'];
+
+/* ═ ALIEN-01 · xenotype-flavoured extension bank ═
+   Non-equal-temperament rows/cols — ratios drawn from a stretched harmonic
+   series rather than 12-TET, so intervals land audibly "off" from a human
+   ear without being random. Cols pushed high and non-integer-related to
+   the rows on purpose: no pair of buttons should coincide with a familiar
+   consonant interval. Flavour is sonic (the tuning itself), not textual —
+   glyphs are geometric, not con-lang characters. */
+const ALIEN_01_ROWS = [303, 411, 587, 799];
+const ALIEN_01_COLS = [1810, 2093, 2416];
+const ALIEN_01_LABELS = ['⟁','⟡','⬡',
+                          '◬','◭','◮',
+                          '⟒','⟓','⟔',
+                          '⧫','⧬','⧭'];
+
+/* CUSTOM — user-tunable bank. Starts as a copy of ITU; phase 9 (config
+   panel) will let a person drag/retype these values. Kept as live-editable
+   arrays (not a fresh object each time) so a future editor can mutate them
+   in place and call setTuning('custom') to push a rebuild.
+   r14: that editor is CFG — ROW HZ, COL HZ and RATIO (P rows crw ccl cst):
+   row r = ROW HZ × RATIO^r, column c = COL HZ × RATIO^c, the worklet working
+   out the same. The defaults (697, 1209, ×1.105) land within a hertz of ITU. */
+const CUSTOM_ROWS   = DTMF_ROWS.slice();
+const CUSTOM_COLS   = DTMF_COLS.slice();
+const CUSTOM_LABELS = DTMF_LABELS.slice();
+function applyCustomBank(){
+  const a = state.p[PIX.crw], b = state.p[PIX.ccl], s = state.p[PIX.cst];
+  for(let r = 0; r < CUSTOM_ROWS.length; r++) CUSTOM_ROWS[r] = a * Math.pow(s, r);
+  for(let c = 0; c < CUSTOM_COLS.length; c++) CUSTOM_COLS[c] = b * Math.pow(s, c);
+  if(currentTuning === 'custom') paintKeyHz();
+}
+
+const TUNINGS = new Map([
+  ['itu',      {rows: DTMF_ROWS,      cols: DTMF_COLS,      labels: DTMF_LABELS}],
+  ['alien-01', {rows: ALIEN_01_ROWS,  cols: ALIEN_01_COLS,  labels: ALIEN_01_LABELS}],
+  ['custom',   {rows: CUSTOM_ROWS,    cols: CUSTOM_COLS,    labels: CUSTOM_LABELS}]
+]);
+
+let currentTuning = 'itu';
+
+/* activeRows/activeCols/activeLabels return the freq/label arrays for the
+   CURRENT tuning selection. Every engine, the grid builder, and the pattern
+   recorder read through these three functions rather than the raw consts,
+   so swapping TUNING never requires touching engine or UI code. */
+function activeRows(){ return TUNINGS.get(currentTuning).rows; }
+function activeCols(){ return TUNINGS.get(currentTuning).cols; }
+function activeLabels(){ return TUNINGS.get(currentTuning).labels; }
+
+/* setTuning — swap banks and rebuild the grid. Any voices currently held
+   are left alone (their frequencies were already captured at press-time);
+   only the button layout and future presses change. */
+function setTuning(key){
+  if(!TUNINGS.has(key)) return;
+  currentTuning = key;
+  document.body.classList.toggle('alien-mode', key !== 'itu');
+  buildGrid();
+  statusText.textContent = 'TUNING ' + key.toUpperCase();
+  setP('tun', [...TUNINGS.keys()].indexOf(key));   /* itu 0 · alien-01 1 · custom 2 — the worklet holds the same banks */
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   5 · TONE GENERATION ENGINES — in WORKLET_SRC now
+   ═════════════════════════════════════════════════════════════════════════
+   r11's dtmfVoice() and ENGINES map are the worklet's four engines, at r11's
+   levels and envelopes (exp attack 8 ms, release tau 50 ms):
+     DTMF  row + column sines · 0.18 (TWIST sets their balance)
+     FM    column modulates row at depth rf*1.5 Hz · 0.2
+     NOISE 0.4 s band-passed burst, centre rf, Q max(0.5, cf/rf) · 0.22
+     WARP  ring mod, sum and difference only · 0.25
+   A key is ['on', 60 + idx, 1] / ['off', 60 + idx]; ENGINE is P row 'eng'.
+   r14: the sequence (PATTERN and STEP alike) plays on the selected engine, as
+   r11's STEP did; ATTACK and RELEASE (CFG) set the envelope, 7 ms / 49 ms at
+   their defaults — r11's. */
+
+/* BUTTONS — held keys by button index → the note the worklet is holding. */
+const BUTTONS = new Map();   /* idx → note (60 + idx) */
+
+/* which engine a press uses — the ENGINE selector, in the worklet's order */
+const ENGINE_KEYS = ['dtmf', 'fm', 'noise', 'warp'];
+let currentEngine = 'dtmf';
+
+/* ═════════════════════════════════════════════════════════════════════════
+   6 · CIRCUIT-BENDING & FX LAYER — in WORKLET_SRC now
+   ═════════════════════════════════════════════════════════════════════════
+   r11 rebuilt a node chain between masterGain and the scope on every BEND
+   change. The worklet runs the same stages in the same order: drive (the
+   tanh 8 WaveShaper curve, 2x), glitch (4 bit) then crush (hold 12) from
+   the old bitcrusher worklet — folded in, one processor per module — echo
+   (250 ms, fb 0.4) and vacuum (lowpass Q 8 dB swept 800 ± 400 Hz at 0.3 Hz).
+   The selector names one of BEND_KEYS, sent as P row 'bnd'.
+   r14: AMOUNT (CFG) sets how hard each stage bends — those numbers are its
+   setting at 50%: drive tanh 1–15x (anti-aliased), glitch 6–2 bits held 1–23
+   samples, echo feedback 0.2–0.6, vacuum swept ± 0–800 Hz at Q 0–8 dB. */
+const BEND_KEYS = ['clean', 'drive', 'glitch', 'full', 'echo', 'vacuum'];
+let currentBend = 'clean';
+function applyBend(level){
+  currentBend = level;
+  setP('bnd', Math.max(0, BEND_KEYS.indexOf(level)));
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   7 · SAMPLE HANDLING
+   ═════════════════════════════════════════════════════════════════════════
+   Sample buttons could source material from three places. Checked against
+   the real enclosure — only the first two have anything to actually talk to:
+     1. Recorded loops — capture from THIS page's own macro-grid performance
+        into an AudioBuffer, loop it. Fully local, no enclosure needed.
+     2. Rendered buffers — OfflineAudioContext render of a PATTERN (§9),
+        stored. Also fully local.
+     3. Live per-module chassis audio taps — NOT currently possible.
+        omni_frame.html has no 'audio-tap' command anywhere; the only shared
+        audio path a weave page has is the summed enclosure bus (§3), which
+        mixes every rack together, not one isolated module. Genuinely
+        implementing this would mean adding a tap command to the enclosure
+        itself, not something this page can conjure on its own — left as an
+        honest open question rather than a fake protocol call.
+
+   Stub: slots toggle ARMED only. Full implementation TODO phase 4.
+
+   IMPLEMENTED r04 (paths 1 and 2 only — real, buildable against what exists):
+
+   Path 1 — RECORD FROM MASTER: captures whatever this page is playing (macro
+   grid, pattern playback, even FX output) via a MediaStreamDestination tap
+   off masterGain + MediaRecorder. Short-press a slot while in RECORD mode to
+   grab 2 seconds of whatever you're dialing.
+
+   Path 2 — RENDER PATTERN: renders a recorded PATTERN (§9) through an
+   OfflineAudioContext using the same dtmfVoice shape, producing a reusable
+   AudioBuffer you can loop from a slot. Long-press a slot while a PATTERN is
+   loaded to render it into that slot.
+
+   Path 3 (chassis taps) remains honestly unimplemented — see the note above.
+
+   r12: the slots play inside the worklet. Path 1 is the worklet recording
+   its own LEVEL output (where r11 tapped masterGain) and handing the take
+   back; path 2 sums r11's clean-DTMF voice straight into a buffer, with no
+   OfflineAudioContext. The page keeps every take and re-loads them into the
+   engine on each power-up.
+   r14: the worklet says what each slot is doing ('sl') and the face paints
+   that, no timers of its own. While the loop runs, a slot waits for its
+   downbeat: a hold ARMS it to record one bar from there, a tap CUES it to
+   start there; stopped, both happen at once (a take lasts 2 s, as r11's). */
+
+const SAMPLES = new Map();   /* slot → {data: Float32Array, sr, label, source, loop} — the face's copy */
+const slotSt = new Uint8Array(8);   /* the worklet's word: 0 empty 1 ready 2 playing 3 recording 4 armed 5 cued */
+const SLOT_CLS = ['', 'loaded', 'playing', 'recording', 'armed', 'cued'];
+const REC_DUR_MS = 2000;     /* default recording window */
+
+/* a take or a render becomes the slot; fromEngine: the worklet holds it already */
+function loadSample(slot, data, sr, label, fromEngine){
+  SAMPLES.set(slot, {
+    data, sr, label: label || ('slot ' + (slot + 1)),
+    source: fromEngine ? 'self-record' : 'pattern-render', loop: true
+  });
+  if(!fromEngine) send('smp', 'load', slot, data, sr);   /* a new take replaces the old one, stopped */
+  paintSlot(slot);
+  statusText.textContent = `slot ${slot + 1} · loaded (${(data.length / sr).toFixed(1)}s)`;
+}
+function paintSlot(slot){
+  const el = sampleEl.querySelector('[data-slot="' + slot + '"]');
+  if(!el) return;
+  const st = slotSt[slot] || (SAMPLES.has(slot) ? 1 : 0);
+  el.classList.remove('loaded', 'playing', 'recording', 'armed', 'cued');
+  if(SLOT_CLS[st]) el.classList.add(SLOT_CLS[st]);
+}
+function paintSlots(){ for(let i = 0; i < 8; i++) paintSlot(i); paintDot(); }
+/* the status dot goes magenta while a take is recording, as r11's did */
+function paintDot(){
+  let rec = false;
+  for(let i = 0; i < 8; i++) if(slotSt[i] === 3) rec = true;
+  dot.style.background = rec ? 'var(--bend)' : '';
+  dot.style.boxShadow = rec ? '0 0 10px var(--bend)' : '';
+}
+/* 'sl' — a slot changed: a finished take is fetched for the face to keep */
+function onSlot(i, st){
+  const was = slotSt[i];
+  slotSt[i] = st;
+  if(was === 3 && st === 1) send('smp', 'get', i);
+  else if(was === 3 && st === 0){ SAMPLES.delete(i); statusText.textContent = `slot ${i + 1} · record failed`; }
+  if(st !== was){
+    if(st === 4) statusText.textContent = `slot ${i + 1} · ARMED · one bar from the downbeat`;
+    else if(st === 3) statusText.textContent = `slot ${i + 1} · REC ${running ? 'one bar' : REC_DUR_MS + 'ms'}`;
+    else if(st === 5) statusText.textContent = `slot ${i + 1} · cued for the downbeat`;
+    else if(st === 2) statusText.textContent = `slot ${i + 1} · playing`;
+  }
+  paintSlot(i); paintDot();
+}
+async function playSample(slot){
+  const s = SAMPLES.get(slot);
+  if(!s && !slotSt[slot]) return;
+  await autoPower();
+  if(!powered) return;
+  send('smp', 'start', slot);               /* looped, from the top — on the downbeat while the loop runs */
+}
+function stopSample(slot){
+  send('smp', 'stop', slot);
+}
+/* a tap: loop it, stop it, end the take now, or call off an armed one */
+function slotTap(slot){
+  const st = slotSt[slot];
+  if(st === 2 || st === 5){ stopSample(slot); statusText.textContent = `slot ${slot + 1} · stopped`; }
+  else if(st === 3){ send('smp', 'get', slot); }
+  else if(st === 4){
+    send('smp', 'clr', slot);
+    const s = SAMPLES.get(slot); if(s) send('smp', 'load', slot, s.data, s.sr);
+    statusText.textContent = `slot ${slot + 1} · disarmed`;
+  }
+  else if(st === 1 || SAMPLES.has(slot)){ playSample(slot); }
+  else { statusText.textContent = `slot ${slot + 1} · empty · hold to record`; }
+}
+
+/* RECORD FROM MASTER — the worklet records its own LEVEL output (r11's
+   masterGain tap) and says when the take is done ('sl'); the take then
+   comes back on 'get' through fromWorklet() → loadSample(). */
+async function recordFromMaster(slot, durationMs){
+  await autoPower();
+  if(!powered) return;
+  send('smp', 'rec', slot, durationMs / 1000);
+}
+
+/* RENDER PATTERN TO BUFFER — r11 scheduled its clean-DTMF voice into an
+   OfflineAudioContext; r12 sums that same voice straight into a buffer (no
+   audio context of any kind under a rack): two sines, 0.0001 → 0.18 in an
+   8 ms exponential ramp, held, released on tau 50 ms, cut 300 ms after the
+   hit, all ×0.8. Works powered or not.
+   r14: the pattern is the loop's sixteen steps; the buffer is exactly one
+   bar and a tail runs on round its start, so the slot loops in time. */
+async function renderPatternToBuffer(slot){
+  const hits = patternFromSteps();
+  if(!hits.length){ statusText.textContent = 'no pattern to render'; return; }
+  const rows = activeRows(), cols = activeCols();
+  let barMs = 0;
+  for(let k = 0; k < 16; k++) barMs += stepMs(k);
+  const rate = engineRate || SRCD_RATES.prefer;
+  const len = Math.max(2, Math.round(barMs / 1000 * rate));
+  const out = new Float32Array(len);
+  statusText.textContent = `slot ${slot + 1} · rendering...`;
+  const nA = Math.round(0.008 * rate), ka = Math.pow(1800, 1 / nA), kr = Math.exp(-1 / (0.05 * rate));
+  for(const h of hits){
+    const r = Math.floor(h.idx / cols.length), c = h.idx % cols.length;
+    if(!rows[r] || !cols[c]) continue;
+    const dur = h.dur / 1000, nD = Math.round(dur * rate);
+    const i0 = Math.round(h.t / 1000 * rate), nT = Math.min(len, Math.round((dur + 0.3) * rate));
+    const wr = 2 * Math.PI * rows[r] / rate, wc = 2 * Math.PI * cols[c] / rate;
+    let g = 0.0001, e = 0.18 - 0.0001;
+    for(let n = 0; n < nT; n++){
+      const v = n < nA ? g : (n < nD ? 0.18 : 0.0001 + e);
+      out[(i0 + n) % len] += 0.8 * v * (Math.sin(wr * n) + Math.sin(wc * n));
+      if(n < nA) g *= ka; else if(n >= nD) e *= kr;
+    }
+  }
+  loadSample(slot, out, rate, `pattern ${slot + 1}`);
+}
+
+/* record mode flag — when true, tapping a slot records from master instead
+   of playing. Set by a long-press on a slot; cleared by tapping again. */
+let slotRecordMode = -1;   /* -1 = none, slot idx = that slot is in record mode */
+
+/* ═════════════════════════════════════════════════════════════════════════
+   8 · DATA-ROW INTEGRATION — none in r12
+   ═════════════════════════════════════════════════════════════════════════
+   targets / glitch-event / score-part were weave-page traffic on srcd-omni
+   (and glitch-event never had a listener in the enclosure). A rack module
+   has no data-row channel in SRC-D r158, so this page sends none of it; the
+   rack's transport, MIDI and tempo arrive the module way (§2, §11). */
+
+/* ═════════════════════════════════════════════════════════════════════════
+   9 · PATTERN RECORDER · STEP SEQUENCER — the engine's sixteen steps (r14)
+   ═════════════════════════════════════════════════════════════════════════
+   currentMode drives what a dialled key does beyond sounding:
+     LIVE    → nothing more: it just plays
+     PATTERN → recording: the key is written into the loop. The first hit
+               starts the loop on its downbeat; while it runs, a hit lands on
+               the step it fell in, or past that step's half-way, the next one
+     STEP    → the key toggles itself on the step under the cursor (← → or a
+               tap on a step cell), as r11's grid did
+
+   r11 kept PATTERN as timestamps and played them back, and STEP, on page
+   timers. r14's sequence lives in the worklet — P rows s01–s16, 0 a rest,
+   1–12 a key — counted on the worklet's own sample clock, so the rack's
+   transport and its atTime land on the sample and a late start joins the
+   rack's bar where it is. PLAY (or SPACE outside LIVE) runs and stops it;
+   the worklet says back when it runs ('run') and each step it plays ('st').
+   EXPORT saves the loop as r11's pattern data ({t, idx, dur} in ms, worked
+   out from the steps, the BPM, GATE and SWING) plus the steps themselves. */
+
+let currentMode = 'live';
+const ST0 = PIX.s01;          /* P index of step 1 */
+let stepEdit = 0;             /* which step is being edited (cursor) */
+let running = false;          /* the worklet's transport, as it last said */
+let playhead = -1;            /* the step it is on; -1 stopped */
+let lastStepAt = 0;           /* performance.now() when that step began */
+let startReq = false;         /* PLAY sent, the worklet not yet answered */
+const pending = new Map();    /* PATTERN hits waiting for their step to pass: step → key idx */
+const preRoll = [];           /* PATTERN hits before the loop answered (the engine booting): [ms, idx] */
+
+const stepVal = k => Math.round(state.p[ST0 + k]);
+function hasSteps(){ for(let k = 0; k < 16; k++) if(stepVal(k) > 0) return true; return false; }
+/* a step's length in ms, as the worklet counts it: sixteenths at BPM, SWING
+   lengthening the even ones and shortening the odd */
+function stepMs(k){
+  const L = 60000 / state.p[PIX.bpm] / 4, sw = state.p[PIX.swg];
+  return (k & 1) ? L * (1 - sw) : L * (1 + sw);
+}
+function setStep(k, v){ setP(ST0 + k, v); paintSteps(); }
+function paintSteps(){ paintStepGrid(); paintRing(); updatePlayButton(); }
+
+/* STEP: the key toggles itself at the cursor */
+function toggleStepAtCursor(buttonIdx){
+  if(currentMode !== 'step') return;
+  setStep(stepEdit, stepVal(stepEdit) === buttonIdx + 1 ? 0 : buttonIdx + 1);
+}
+/* PATTERN: the key is written where the loop is. A hit already heard live
+   is not played again on the step it lands on: written past half-way it
+   waits (pending) until the worklet has passed that step. Hits before the
+   loop has started (the first one starts it, and the engine may still be
+   booting) keep their spacing: the first lands on the downbeat */
+async function patternHit(idx){
+  if(currentMode !== 'pattern') return;
+  if(!running){
+    preRoll.push([performance.now(), idx]);
+    if(!startReq){
+      startReq = true;
+      await autoPower();
+      if(powered) send('play', 1); else { startReq = false; preRoll.length = 0; }
+    }
+    return;
+  }
+  if(playhead >= 0 && performance.now() - lastStepAt < stepMs(playhead) * 0.5) setStep(playhead, idx + 1);
+  else pending.set((playhead + 1) & 15, idx);
+}
+/* the loop's first step is here: the pre-roll goes down from it, a sixteenth apart */
+function placePreRoll(k){
+  const t0 = preRoll[0][0], L = 60000 / state.p[PIX.bpm] / 4;
+  for(const [t, i] of preRoll){
+    const s = (k + Math.min(15, Math.round((t - t0) / L))) & 15;
+    if(s === k) setP(ST0 + s, i + 1); else pending.set(s, i);
+  }
+  preRoll.length = 0;
+}
+
+/* PLAY · STOP — the face's transport; the rack's arrives at the worklet itself */
+async function togglePlay(){
+  if(running){ send('play', 0); return; }
+  await autoPower();
+  if(!powered) return;
+  startReq = true;
+  send('play', 1);
+}
+/* 'run' — the loop started or stopped, whoever asked */
+function setRunning(r){
+  running = r; startReq = false;
+  if(!r){ playhead = -1; pending.clear(); preRoll.length = 0; seqGlowsOff(); sweepFree(); }
+  paintPlay(); paintSteps();
+  statusText.textContent = loopWord(r);
+}
+function loopWord(r){ return currentMode.toUpperCase() + ' · ' + Math.round(state.p[PIX.bpm]) + 'bpm · ' + (r ? 'playing' : 'stopped'); }
+/* 'st' — the worklet has just played step k */
+const seqTimers = new Array(12).fill(0);
+function onStep(k){
+  playhead = k; lastStepAt = performance.now();
+  if(preRoll.length) placePreRoll(k);
+  if(pending.has(k)){ const i = pending.get(k); pending.delete(k); setP(ST0 + k, i + 1); }
+  const v = stepVal(k);
+  if(v > 0) seqGlow(v - 1, Math.max(50, stepMs(k) * state.p[PIX.gat]));
+  paintSteps();
+}
+/* the key a step plays lights for its gate (PHANTOM hides it — see the CSS) */
+function seqGlow(i, ms){
+  const b = gridEl.children[i]; if(!b) return;
+  b.classList.add('seq');
+  clearTimeout(seqTimers[i]);
+  seqTimers[i] = setTimeout(() => { const e = gridEl.children[i]; if(e) e.classList.remove('seq'); }, ms);
+}
+function seqGlowsOff(){
+  for(let i = 0; i < 12; i++){ clearTimeout(seqTimers[i]); seqTimers[i] = 0; }
+  gridEl.querySelectorAll('.macro.seq').forEach(b => b.classList.remove('seq'));
+}
+
+/* the loop as r11's pattern data: {t, idx, dur} in ms from the downbeat */
+function patternFromSteps(){
+  const out = [], gate = state.p[PIX.gat];
+  let t = 0;
+  for(let k = 0; k < lenN(); k++){
+    const v = stepVal(k), d = stepMs(k);
+    if(v > 0) out.push({ t: Math.round(t * 10) / 10, idx: v - 1, dur: Math.round(d * gate * 10) / 10 });
+    t += d;
+  }
+  return out;
+}
+function exportPattern(){
+  /* r11 handed this to the data row (glitch-event — no listener there yet).
+     A rack module has no data-row channel, so the same well-formed pattern
+     + tuning is saved as a file instead — r14 adds the steps and the tempo. */
+  const pattern = patternFromSteps(), steps = [];
+  for(let k = 0; k < 16; k++) steps.push(stepVal(k));
+  const blob = new Blob([JSON.stringify({ kind: 'pattern', pattern, tuning: currentTuning,
+    steps, length: lenN(), bpm: state.p[PIX.bpm], gate: state.p[PIX.gat], swing: state.p[PIX.swg], engine: currentEngine })], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'glitch_dial_pattern.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  statusText.textContent = `EXPORTED · ${pattern.length} hits`;
+}
+/* CFG's RANDOM and CLEAR */
+function randomSteps(){
+  for(let k = 0; k < 16; k++) setP(ST0 + k, (k === 0 || Math.random() < 0.42) ? 1 + Math.floor(Math.random() * 12) : 0);
+  pending.clear(); paintSteps();
+  statusText.textContent = 'SEQUENCE · a random number dialled';
+}
+function clearSteps(){
+  for(let k = 0; k < 16; k++) setP(ST0 + k, 0);
+  pending.clear(); paintSteps();
+  statusText.textContent = 'SEQUENCE · cleared';
+}
+
+/* ═ STEP MØDΞ — 16-step grid sequencer ═
+   Instead of free-timing, STEP mode quantizes the grid into 16 steps. Tapping
+   a macro button toggles it on the current step; the playhead cycles the
+   steps at a BPM. The step grid is drawn as a thin row of 16 cells below the
+   macro grid, visible only in STEP mode. Left/right arrows move the edit
+   cursor; the playhead highlights the step the worklet is playing. */
+
+function paintStepGrid(){
+  const row = document.getElementById('step-row');
+  if(!row) return;
+  if(currentMode !== 'step'){ row.style.display = 'none'; return; }
+  row.style.display = 'grid';
+  const labels = activeLabels();
+  for(let i = 0; i < 16; i++){
+    const cell = row.children[i];
+    if(!cell) continue;
+    const v = stepVal(i);
+    cell.classList.toggle('active', v > 0);
+    cell.classList.toggle('cursor', i === stepEdit);
+    cell.classList.toggle('playhead', i === playhead && running);
+    cell.classList.toggle('out', i >= lenN());
+    const t = 'STEP ' + (i + 1) + (v > 0 ? ' · ' + labels[v - 1] : ' · rest');
+    if(cell.title !== t) cell.title = t;
+  }
+}
+
+function buildStepGrid(){
+  let row = document.getElementById('step-row');
+  if(row) return;
+  row = document.createElement('div');
+  row.id = 'step-row';
+  row.style.display = 'none';
+  for(let i = 0; i < 16; i++){
+    const cell = document.createElement('div');
+    cell.className = 'step-cell';
+    cell.textContent = String(i + 1);
+    cell.dataset.step = i;
+    row.appendChild(cell);
+  }
+  /* insert the step row in the terminal-container, just before the sample
+     row. gridEl.parentNode is the dial-cluster, so use the container instead. */
+  const tc = document.querySelector('.terminal-container');
+  tc.insertBefore(row, sampleEl);
+  row.addEventListener('click', e => {
+    const cell = e.target.closest('.step-cell'); if(!cell) return;
+    stepEdit = +cell.dataset.step;
+    paintStepGrid(); paintRing();
+  });
+}
+
+/* small helper so PLAY/EXPORT reflect whether there's anything to act on:
+   PLAY also while the loop runs (to stop it) and in PATTERN (to record into an empty one) */
+function updatePlayButton(){
+  const has = hasSteps();
+  if(playBtn) playBtn.disabled = !(has || running || currentMode === 'pattern');
+  if(exportBtn) exportBtn.disabled = !has;
+}
+function paintPlay(){
+  playBtn.classList.toggle('on', running);
+  playBtn.textContent = running ? 'STOP' : 'PLAY';
+  updatePlayButton();
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   10 · UI WIRING
+   ═════════════════════════════════════════════════════════════════════════ */
+const gridEl    = document.getElementById('grid');
+const sampleEl = document.getElementById('sample-row');
+const statusText= document.getElementById('status');
+const dot       = document.getElementById('dot');
+const tuningEl  = document.getElementById('tuning');
+const modeEl    = document.getElementById('mode');
+const bendEl    = document.getElementById('bend');
+const engineEl  = document.getElementById('engine');
+const playBtn   = document.getElementById('play');
+const exportBtn = document.getElementById('export');
+const midiHeld  = new Map();   /* r14 · rack MIDI notes sounding → the key each lights */
+
+/* build the macro grid from the active labels. Called on init and whenever
+   TUNING changes via setTuning() — every bank here is 3×4 (12 buttons), so
+   the CSS grid's fixed repeat(3,1fr) matches. r14: each key carries its two
+   tones under the label. */
+function buildGrid(){
+  gridEl.textContent = '';
+  const labels = activeLabels();
+  const nc = activeCols().length;
+  labels.forEach((label, i) => {
+    const row = Math.floor(i / nc);
+    const col = i % nc;
+    const b = document.createElement('div');
+    b.className = 'macro';
+    const lab = document.createElement('span'), hz = document.createElement('span');
+    lab.className = 'lab'; hz.className = 'hz';
+    lab.textContent = label;
+    b.append(lab, hz);
+    b.dataset.row = row; b.dataset.col = col; b.dataset.idx = i;
+    gridEl.appendChild(b);
+  });
+  paintKeyHz();
+  for(const i of midiHeld.values()){ const b = gridEl.children[i]; if(b) b.classList.add('midi'); }
+  applySpectrumIfActive();
+}
+/* row·column Hz on every key, swapped under MIRROR as the worklet swaps them */
+function paintKeyHz(){
+  const rows = activeRows(), cols = activeCols();
+  for(const b of gridEl.children){
+    const hz = b.querySelector('.hz'); if(!hz) continue;
+    let rf = rows[+b.dataset.row], cf = cols[+b.dataset.col];
+    if(mirrorMode){ const t = rf; rf = cf; cf = t; }
+    hz.textContent = Math.round(rf) + '·' + Math.round(cf);
+  }
+}
+/* a note from the rack sounds, and lights the key it lands on (any octave) */
+function midiOn(n, vel){
+  send('on', n, vel);
+  const i = ((n - 60) % 12 + 12) % 12;
+  midiHeld.set(n, i);
+  const b = gridEl.children[i]; if(b) b.classList.add('midi');
+}
+function midiOff(n){
+  send('off', n);
+  const i = midiHeld.get(n);
+  if(i === undefined) return;
+  midiHeld.delete(n);
+  for(const j of midiHeld.values()) if(j === i) return;
+  const b = gridEl.children[i]; if(b) b.classList.remove('midi');
+}
+function buildSampleRow(){
+  for(let i = 0; i < 8; i++){
+    const s = document.createElement('div');
+    s.className = 'slot'; s.textContent = String(i + 1);
+    s.dataset.slot = i;
+    sampleEl.appendChild(s);
+  }
+}
+
+/* MACRO PRESS → DTMF (or selected engine) tone. Hold = sustained; release =
+   stop. Pointermove while held = pitch-bend: horizontal drag detunes both
+   oscillators by up to ±200 cents (2 semitones), so a held tone can be
+   \"wobbled\" with a finger drag — the gesture zone from phase 9, delivered
+   early because it's a small addition on top of existing pointer handlers. */
+
+/* xenotype control row state */
+let phantomMode = false, spectrumMode = false, droneMode = false, pulseMode = false;
+let fractureMode = false, gravityMode = false, stutterMode = false, mirrorMode = false;
+
+async function onMacroDown(b){
+  const r = +b.dataset.row, c = +b.dataset.col, idx = b.dataset.idx;
+
+  let rf = activeRows()[r], cf = activeCols()[c];
+
+  /* MIRROR mode — transpose the matrix: swap row and column frequencies
+     so pressing (r,c) sounds as (c,r). The matrix flips diagonally. */
+  if(mirrorMode){ const tmp = rf; rf = cf; cf = tmp; }
+
+  /* RΛDΛR pitch detune — apply the active radar point's pitch shift to
+     both frequencies. radarPitchSemitones is set by radarApply() from the
+     active vector point's X position (-12 to +12 semitones). */
+  if(radarPitchSemitones){
+    const pm = Math.pow(2, radarPitchSemitones / 12);
+    rf *= pm; cf *= pm;
+  }
+
+  b.classList.add('down');
+  /* the voice is the worklet's: it takes ENGINE, MIRROR, the scope's pitch,
+     FRACTURE (microtonal cluster copies) and GRAVITY (the ~3 s sink) from
+     the same P rows at the press. rf / cf above stay for the readout. */
+  const note = 60 + +idx;
+
+  BUTTONS.set(idx, note);
+  b._dragX = null; b._t0 = performance.now(); b._t1 = 0;
+  const dial = `DIAL ${activeLabels()[idx]} · ${rf.toFixed(0)}/${cf.toFixed(0)}Hz`;
+  statusText.textContent = dial;
+  if(currentMode === 'step') toggleStepAtCursor(+idx);
+  else if(currentMode === 'pattern') patternHit(+idx);
+  if(pulseMode) applyPulseGlow();
+  if(powered){ send('on', note, 1); return; }
+  /* not powered: this press powers us, as r11's first press started its audio */
+  await autoPower();
+  if(!powered) return;
+  if(b._t1){ send('on', note, 1); setTimeout(() => send('off', note), Math.max(60, b._t1 - b._t0)); }   /* lifted while it came up: the tap still sounds */
+  else if(BUTTONS.get(idx) === note){ send('on', note, 1); statusText.textContent = dial; }                /* still held */
+}
+function onMacroMove(b, deltaX){
+  const idx = b.dataset.idx;
+  const note = BUTTONS.get(idx);
+  if(note === undefined) return;
+  /* ±200 cents over ~150px of drag. cents = deltaX * (200/75). */
+  const cents = Math.max(-200, Math.min(200, deltaX * (200/75)));
+  send('bend', note, cents);
+}
+function onMacroUp(b){
+  const idx = b.dataset.idx;
+  b._t1 = performance.now();
+
+  const note = BUTTONS.get(idx);
+  if(note !== undefined) send('off', note);
+  BUTTONS.delete(idx);
+  b.classList.remove('down');
+  statusText.textContent = BUTTONS.size ? `${BUTTONS.size} held` : (running ? loopWord(true) : 'STANDBY');
+  if(pulseMode) applyPulseGlow();
+}
+
+/* delegated listeners on the grid container — one handler, not one per
+   button, because buttons are rebuilt on tuning change and handlers
+   attached to replaced elements quietly stop working (same lesson as
+   data_weave's delegated change listener). */
+gridEl.addEventListener('pointerdown', e => {
+  const b = e.target.closest('.macro'); if(!b) return;
+  /* the key keeps the pointer until it lifts — a mouse dragged off a key
+     used to leave its note sounding (touch and stylus already did this) */
+  try{ b.setPointerCapture(e.pointerId); }catch(_){}
+  onMacroDown(b);
+});
+gridEl.addEventListener('pointerup', e => {
+  const b = e.target.closest('.macro'); if(b) onMacroUp(b);
+});
+gridEl.addEventListener('pointercancel', e => {
+  const b = e.target.closest('.macro'); if(b && b.classList.contains('down')) onMacroUp(b);
+});
+gridEl.addEventListener('pointerleave', e => {
+  const b = e.target.closest('.macro');
+  if(b && b.classList.contains('down')) onMacroUp(b);
+});
+/* gesture zone: track drag while a button is held to drive pitch-bend.
+   _dragX stores the starting X so pointermove can compute the delta. */
+gridEl.addEventListener('pointermove', e => {
+  const b = e.target.closest('.macro');
+  if(!b || !b.classList.contains('down')) return;
+  if(b._dragX === null){ b._dragX = e.clientX; return; }
+  const delta = e.clientX - b._dragX;
+  if(Math.abs(delta) > 2) onMacroMove(b, delta);
+});
+
+/* SAMPLE SLOTS — short-press plays/stops a loaded sample. Long-press (500ms
+   hold) records 2 seconds from masterGain into the slot. If a PATTERN is
+   loaded and the slot is empty, long-press renders the pattern to a buffer
+   instead. Double-click clears a slot.
+   Uses a timer to distinguish short from long without a second event.
+   r14: while the loop runs a hold arms the slot for one bar from the
+   downbeat and a tap cues it there; a tap on a recording slot ends the take,
+   on an armed one calls it off. The pattern is rendered (PATTERN or STEP,
+   the loop stopped, the slot empty) — playing, the hold records the real
+   thing: the loop, the engine, the bends. */
+let slotHoldTimer = null, slotHoldFired = false;
+sampleEl.addEventListener('pointerdown', e => {
+  const s = e.target.closest('.slot'); if(!s) return;
+  const slot = +s.dataset.slot;
+  slotHoldFired = false;
+  slotHoldTimer = setTimeout(() => {
+    slotHoldFired = true;
+    /* long-press: record or render */
+    if(currentMode !== 'live' && !running && hasSteps() && !SAMPLES.has(slot) && !slotSt[slot]){
+      renderPatternToBuffer(slot);
+    }else{
+      recordFromMaster(slot, REC_DUR_MS);
+    }
+  }, 500);
+});
+sampleEl.addEventListener('pointerup', e => {
+  const s = e.target.closest('.slot'); if(!s) return;
+  clearTimeout(slotHoldTimer);
+  if(slotHoldFired) return;   /* long-press already handled */
+  slotTap(+s.dataset.slot);   /* short-press: play/stop toggle */
+});
+sampleEl.addEventListener('dblclick', e => {
+  const s = e.target.closest('.slot'); if(!s) return;
+  const slot = +s.dataset.slot;
+  SAMPLES.delete(slot);
+  send('smp', 'clr', slot);
+  if(!powered) paintSlot(slot);
+  statusText.textContent = `slot ${slot + 1} · cleared`;
+});
+
+/* PANIC — stop everything now. The worklet drops every voice and slot at
+   once, and says so back, so a panic sent by the rack clears this face too.
+   r14: this face's PANIC stops its loop as well (a rack's panic leaves the
+   rack's transport to the rack). */
+document.getElementById('panic').addEventListener('click', () => {
+  send('play', 0);
+  send('panic');
+  panicFace();
+});
+function panicFace(){
+  faceQuiet();
+  if(droneMode){ droneMode = false; setP('drn', 0); document.querySelector('[data-xo="drone"]').classList.remove('active'); }
+  /* r11 stopped the stutter gate here but left STUTTER lit; now it goes off like DRONE and PHANTOM */
+  if(stutterMode){ stutterMode = false; setP('stu', 0); document.body.classList.remove('stutter-mode'); document.querySelector('[data-xo="stutter"]').classList.remove('active'); }
+  if(phantomMode){ phantomMode = false; document.body.classList.remove('phantom-mode'); togglePhantomSweep(false); document.querySelector('[data-xo="phantom"]').classList.remove('active'); paintRing(); }
+  statusText.textContent = 'PANIC · all stop';
+  dot.style.background = 'var(--bend)';
+  dot.style.boxShadow = '0 0 10px var(--bend)';
+  setTimeout(paintDot, 600);
+}
+/* the face's share of going quiet (PANIC, ⏻ off, the rack's engine gone):
+   keys up, hits unlit; with the engine gone, the loop and the slots too */
+function faceQuiet(){
+  BUTTONS.clear();
+  document.querySelectorAll('.macro.down').forEach(b => b.classList.remove('down'));
+  midiHeld.clear();
+  gridEl.querySelectorAll('.macro.midi').forEach(b => b.classList.remove('midi'));
+  seqGlowsOff();
+  pending.clear(); preRoll.length = 0;
+  if(!powered){
+    running = false; playhead = -1; startReq = false; sweepFree();
+    slotSt.fill(0);
+    paintPlay(); paintSteps(); paintSlots();
+  }
+}
+
+/* SELECTORS */
+tuningEl.addEventListener('change', e => { setTuning(e.target.value); });
+
+modeEl.addEventListener('change', e => {
+  const prevMode = currentMode;
+  currentMode = e.target.value;
+  pending.clear(); preRoll.length = 0;   /* r14: the loop keeps running across modes — it may be the rack's */
+  if(currentMode === 'pattern'){
+    statusText.textContent = 'MODE PATTERN · recording';
+  }else if(currentMode === 'step'){
+    buildStepGrid();
+    statusText.textContent = 'MODE STEP · tap cells to place hits';
+  }else{
+    statusText.textContent = 'MODE ' + currentMode.toUpperCase();
+  }
+  paintSteps();   /* the step row comes or goes; the ring's cursor with it */
+  if(currentMode === 'step' || prevMode === 'step') refit();   /* r13: the step row came or went */
+});
+
+bendEl.addEventListener('change', e => {
+  statusText.textContent = 'BEND ' + e.target.value.toUpperCase();
+  applyBend(e.target.value);
+});
+
+engineEl.addEventListener('change', e => {
+  currentEngine = e.target.value;
+  statusText.textContent = 'ENGINE ' + currentEngine.toUpperCase();
+  setP('eng', Math.max(0, ENGINE_KEYS.indexOf(currentEngine)));
+});
+
+playBtn.addEventListener('click', () => { togglePlay(); });
+exportBtn.addEventListener('click', () => { exportPattern(); });
+
+/* KEYBOARD — arrow keys move the step cursor in STEP mode; space toggles
+   playback; Escape = PANIC. Only active in STEP mode for arrows so typing
+   in a code editor inside the enclosure doesn't steal keystrokes. */
+window.addEventListener('keydown', e => {
+  if(e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  if(currentMode === 'step'){
+    if(e.key === 'ArrowLeft'){ stepEdit = (stepEdit - 1 + 16) % 16; paintStepGrid(); paintRing(); e.preventDefault(); }
+    if(e.key === 'ArrowRight'){ stepEdit = (stepEdit + 1) % 16; paintStepGrid(); paintRing(); e.preventDefault(); }
+  }
+  if(e.key === ' ' && currentMode !== 'live'){
+    e.preventDefault();
+    if(!e.repeat) togglePlay();
+  }
+  if(e.key === 'Escape'){
+    document.getElementById('panic').click();
+  }
+});
+/* r14: SPACE is the transport, so a focused button (PLAY just clicked) must not also click */
+window.addEventListener('keyup', e => {
+  if(e.key === ' ' && currentMode !== 'live' && e.target.tagName !== 'SELECT' && e.target.tagName !== 'INPUT') e.preventDefault();
+});
+
+/* ═════════════════════════════════════════════════════════════════════════
+   XΞNØTYPE SPIRΛL — eight toggle buttons arranged in a spiral around the
+   central DTMF grid. They change the pad's behaviour without changing its
+   tuning. They are the "alien tech" layer: things the human DTMF pad never
+   had. Each is a simple on/off toggle that applies a body class or starts/
+   stops a process. The old ABCD modifier column (r08) has been replaced by
+   these spiral buttons — the pad is now a pure 3×4 tone matrix.
+
+   PHANTOM (⊗) — stealth + reverse-delay mode. Audio keeps playing, but the
+     .down visual state is suppressed (see CSS body.phantom-mode .macro.down).
+     The operator can hear what they're dialing but nobody watching the screen
+     can see it. The scope's sweep reverses to a violet counter-clockwise beam
+     and a 350ms feedback delay engages — the sonic equivalent of falling
+     backward through your own echoes on the way down. (r14: the echoes now
+     play backwards — two heads read each 350 ms window in reverse.)
+   SPECTRUM (◉) — recolors each button based on its row frequency. Lower rows
+     glow warm (red/orange), higher rows cool (blue). Applied as a per-button
+     inner shadow class. Helps visualize the frequency space at a glance.
+   DRONE (⊕) — a low alien drone plays underneath everything you dial. It's a
+     pair of detuned sawtooth oscillators at ~55-60Hz through a slow tremolo,
+     the sonic equivalent of the deep-signal viewfinder — you can hear the room
+     underneath the tones. Kills when toggled off or PANIC.
+   PULSE (✦) — bioluminescent glow. The terminal container's box-shadow
+     intensifies based on how many buttons are held simultaneously, so the
+     whole panel "glows brighter" the more you mash. Pure visual feedback
+     tied to the held count. */
+const xenoRow = document.getElementById('xo-spiral');
+
+/* ═ ØRBIT SYSTEM — the 8 xenotype glyphs continuously orbit the central
+   grid in a logarithmic spiral. Each glyph has its own angle that advances
+   per frame via requestAnimationFrame. Long-press (>280ms) GRABS a glyph,
+   freezing it in place while the rest keep orbiting. Release resumes orbit
+   from the held angle — a game of catch and release. CSS transforms only
+   (no left/top writes) to avoid layout thrashing on the Moto G Stylus. */
+const ORBIT_SPEED = 0.00028;   /* rad/ms ≈ one orbit per ~22s */
+const GRAB_DELAY  = 280;        /* ms: tap vs long-press grab threshold */
+const spiralGrowth = 0.02;
+
+let orbitBtns    = [];           /* cached .xo-btn elements */
+let glyphAngles  = [];           /* per-glyph angle in radians */
+let glyphRX      = [];           /* per-glyph horizontal orbit radius */
+let glyphRY      = [];           /* per-glyph vertical orbit radius */
+let orbitCenter  = { x: 0, y: 0 };
+let orbitRunning = false;
+let orbitLastTime = 0;
+let orbitRAF     = 0;
+/* r13: one record per finger, so a finger holding a glyph is not let go
+   when the stylus lifts off a key (r11 kept a single global grab) */
+const glyphPtrs  = new Map();     /* pointerId → { btn, idx, t0, timer, grabbed } */
+const grabbedIdx = new Set();     /* glyphs frozen in orbit right now */
+let orbitSvgLines = [];           /* cached SVG line elements */
+
+function computeOrbitLayout(){
+  const cluster = document.querySelector('.dial-cluster');
+  const w = cluster.offsetWidth, h = cluster.offsetHeight;
+  const gr = gridEl.getBoundingClientRect();
+  const cr = cluster.getBoundingClientRect();
+  orbitCenter.x = (gr.left - cr.left) + gr.width / 2;
+  orbitCenter.y = (gr.top - cr.top) + gr.height / 2;
+  const halfW = gr.width / 2, halfH = gr.height / 2;
+  /* half a glyph, measured (r13: 46 px on a phone, 34 px elsewhere) */
+  const g0 = xenoRow.querySelector('.xo-btn:not(.grabbed)');
+  const btnHalf = (g0 && g0.offsetWidth ? g0.offsetWidth : 34) / 2;
+  const margin = 16;
+
+  orbitBtns = Array.from(xenoRow.querySelectorAll('.xo-btn'));
+  const growthFactor = 1 + (orbitBtns.length - 1) * spiralGrowth;
+  const idealR = Math.sqrt(halfW * halfW + halfH * halfH) + btnHalf + margin;
+
+  /* VIEWPORT-BASED horizontal constraint — the orbit may extend beyond the
+     cluster into the terminal-container padding area, but must not overflow
+     the viewport (body has overflow-x: hidden). cr.left is the cluster's
+     offset from the viewport left edge. */
+  const maxRX = Math.min(
+    orbitCenter.x + cr.left,          /* space to the left of center, in viewport */
+    (window.innerWidth - cr.left) - orbitCenter.x  /* space to the right */
+  ) - btnHalf - 4;
+
+  /* Vertical — generous. The page scrolls vertically so glyphs can extend
+     well beyond the cluster's top/bottom. Cap at a reasonable multiple of
+     the grid height to avoid extreme ellipses. */
+  let maxRY = Math.max(halfH, orbitCenter.y, h - orbitCenter.y) + 60;
+  /* r13 · phone: no page to scroll, so the orbit stays inside the cluster
+     (whose padding is sized for exactly this — see the MØBILΞ CSS) */
+  if(window.innerWidth <= 480) maxRY = Math.min(orbitCenter.y, h - orbitCenter.y) - btnHalf - 2;
+
+  /* Per-axis FLOOR: glyphs must clear the grid's half-width / half-height
+     (not the diagonal — an elliptical orbit can be narrower than the
+     diagonal as long as it clears the sides). */
+  const floorRX = halfW + btnHalf + 4;
+  const floorRY = halfH + btnHalf + 4;
+
+  let baseRX = idealR * growthFactor > maxRX
+    ? Math.max(floorRX, Math.min(idealR, maxRX / growthFactor)) : idealR;
+  let baseRY = idealR * growthFactor > maxRY
+    ? Math.max(floorRY, Math.min(idealR, maxRY / growthFactor)) : idealR;
+
+  if(glyphAngles.length !== orbitBtns.length){
+    glyphAngles = [];
+    orbitBtns.forEach((b, i) => {
+      glyphAngles.push(-Math.PI / 2 + i * (Math.PI * 2 / orbitBtns.length));
+    });
+  }
+  /* always recalculate radii — they change with viewport / cluster size */
+  glyphRX = orbitBtns.map((b, i) => baseRX * (1 + i * spiralGrowth));
+  glyphRY = orbitBtns.map((b, i) => baseRY * (1 + i * spiralGrowth));
+
+  /* (re)build SVG connector lines */
+  const svg = document.getElementById('spiral-lines');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.textContent = '';
+  orbitSvgLines = orbitBtns.map(() => {
+    const line = document.createElementNS(svg.namespaceURI, 'line');
+    line.setAttribute('stroke', 'rgba(176,38,255,0.08)');
+    line.setAttribute('stroke-width', '1');
+    line.setAttribute('stroke-dasharray', '2,3');
+    svg.appendChild(line);
+    return line;
+  });
+}
+
+function orbitLoop(ts){
+  if(!orbitRunning) return;
+  if(!orbitLastTime) orbitLastTime = ts;
+  const dt = Math.min(50, ts - orbitLastTime);   /* cap delta for tab-switch gaps */
+  orbitLastTime = ts;
+
+  for(let i = 0; i < orbitBtns.length; i++){
+    /* counter-clockwise: angle DECREASES per frame, creating a figure-8
+       illusion with the clockwise radar sweep above */
+    if(!grabbedIdx.has(i)) glyphAngles[i] -= ORBIT_SPEED * dt;
+    const a = glyphAngles[i];
+    const rx = glyphRX[i];
+    const ry = glyphRY[i];
+    const x = orbitCenter.x + Math.cos(a) * rx;
+    const y = orbitCenter.y + Math.sin(a) * ry;
+    orbitBtns[i].style.transform = `translate(${x}px,${y}px) translate(-50%,-50%)`;
+    const line = orbitSvgLines[i];
+    if(line){
+      const lx = orbitCenter.x + Math.cos(a) * (rx - 20);
+      const ly = orbitCenter.y + Math.sin(a) * (ry - 20);
+      line.setAttribute('x1', lx.toFixed(1));
+      line.setAttribute('y1', ly.toFixed(1));
+      line.setAttribute('x2', x.toFixed(1));
+      line.setAttribute('y2', y.toFixed(1));
+    }
+  }
+  scopeTick(ts);   /* r14: the beam on the playhead, and the pings */
+  orbitRAF = requestAnimationFrame(orbitLoop);
+}
+
+function startOrbit(){
+  if(orbitRunning) return;
+  orbitRunning = true;
+  orbitLastTime = 0;
+  orbitRAF = requestAnimationFrame(orbitLoop);
+}
+
+function stopOrbit(){
+  orbitRunning = false;
+  if(orbitRAF) cancelAnimationFrame(orbitRAF);
+}
+
+/* ═ XΞNØ GLYPH INTERACTION — pointer-based tap/grab system.
+   TAP (quick press < 280ms): toggles the glyph's mode (same as old click).
+   GRAB (long press ≥ 280ms): freezes the glyph in orbit while the rest keep
+   orbiting. Release resumes orbit from the held angle. The operator catches
+   glyphs with the stylus and releases them back into the orbit. */
+function handleXenoToggle(btn){
+  const xo = btn.dataset.xo;
+  switch(xo){
+    case "phantom":
+      phantomMode = !phantomMode;
+      document.body.classList.toggle('phantom-mode', phantomMode);
+      btn.classList.toggle('active', phantomMode);
+      togglePhantomSweep(phantomMode);
+      paintRing();   /* r14: the steps run anticlockwise with the violet beam */
+      statusText.textContent = phantomMode ? 'PHANTOM engaged · reverse delay' : 'PHANTOM off';
+      break;
+    case "spectrum":
+      spectrumMode = !spectrumMode;
+      btn.classList.toggle('active', spectrumMode);
+      applySpectrumIfActive();
+      statusText.textContent = spectrumMode ? 'SPECTRUM vision' : 'SPECTRUM off';
+      break;
+    case "drone":
+      droneMode = !droneMode;
+      btn.classList.toggle('active', droneMode);
+      setP('drn', droneMode ? 1 : 0);
+      if(droneMode) autoPower();
+      statusText.textContent = droneMode ? 'DRONE active · drone running' : 'DRONE off';
+      break;
+    case "pulse":
+      pulseMode = !pulseMode;
+      btn.classList.toggle('active', pulseMode);
+      if(!pulseMode) clearPulseGlow();
+      applyPulseGlow();
+      statusText.textContent = pulseMode ? 'PULSE glow active' : 'PULSE off';
+      break;
+    case "fracture":
+      fractureMode = !fractureMode;
+      document.body.classList.toggle('fracture-mode', fractureMode);
+      btn.classList.toggle('active', fractureMode);
+      setP('frc', fractureMode ? 1 : 0);
+      statusText.textContent = fractureMode ? 'FRACTURE engaged · microtonal clusters' : 'FRACTURE off';
+      break;
+    case "gravity":
+      gravityMode = !gravityMode;
+      document.body.classList.toggle('gravity-mode', gravityMode);
+      btn.classList.toggle('active', gravityMode);
+      setP('grv', gravityMode ? 1 : 0);
+      statusText.textContent = gravityMode ? 'GRAVITY pulling · tones sink over time' : 'GRAVITY off';
+      break;
+    case "stutter":
+      stutterMode = !stutterMode;
+      document.body.classList.toggle('stutter-mode', stutterMode);
+      btn.classList.toggle('active', stutterMode);
+      setP('stu', stutterMode ? 1 : 0);
+      statusText.textContent = stutterMode ? 'STUTTER active · gate tremolo' : 'STUTTER off';
+      break;
+    case "mirror":
+      mirrorMode = !mirrorMode;
+      document.body.classList.toggle('mirror-mode', mirrorMode);
+      btn.classList.toggle('active', mirrorMode);
+      setP('mir', mirrorMode ? 1 : 0);
+      paintKeyHz();   /* r14: the keys show their tones swapped */
+      statusText.textContent = mirrorMode ? 'MIRROR transposed · matrix flipped' : 'MIRROR off';
+      break;
+  }
+}
+
+/* wire pointerdown on each glyph — starts the grab timer. Must be called
+   after computeOrbitLayout() populates orbitBtns. */
+function attachGlyphHandlers(){
+  orbitBtns.forEach((btn, idx) => {
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      autoPower();
+      /* r13: the glyph keeps this finger until it lifts, and the grab is this
+         finger's alone — the stylus playing keys meanwhile does not touch it */
+      try{ btn.setPointerCapture(e.pointerId); }catch(_){}
+      const g = { btn, idx, t0: performance.now(), timer: 0, grabbed: false };
+      g.timer = setTimeout(() => {
+        g.timer = 0; g.grabbed = true;
+        grabbedIdx.add(idx);
+        btn.classList.add('grabbed');
+        if(navigator.vibrate) navigator.vibrate(15);
+      }, GRAB_DELAY);
+      glyphPtrs.set(e.pointerId, g);
+    });
+  });
+}
+
+/* release on window — catches both tap-fire and grab-release, for the
+   finger that started it only */
+function glyphLift(e, cancelled){
+  const g = glyphPtrs.get(e.pointerId);
+  if(!g) return;
+  glyphPtrs.delete(e.pointerId);
+  if(g.timer) clearTimeout(g.timer);
+  if(g.grabbed){
+    let still = false;
+    for(const o of glyphPtrs.values()) if(o.idx === g.idx && o.grabbed) still = true;
+    if(!still){ grabbedIdx.delete(g.idx); g.btn.classList.remove('grabbed'); }
+  }else if(!cancelled && performance.now() - g.t0 < GRAB_DELAY){
+    handleXenoToggle(g.btn);
+  }
+}
+window.addEventListener('pointerup', e => glyphLift(e, false));
+window.addEventListener('pointercancel', e => glyphLift(e, true));
+
+/* SPECTRUM — applies per-button inner shadow based on row index */
+function applySpectrumIfActive(){
+  const macros = gridEl.querySelectorAll('.macro');
+  macros.forEach(b => {
+    b.classList.remove('spectrum-0','spectrum-1','spectrum-2','spectrum-3');
+    if(spectrumMode) b.classList.add('spectrum-' + b.dataset.row);
+  });
+}
+
+/* DRONE · FRACTURE · GRAVITY · STUTTER — their sound is in WORKLET_SRC now,
+   switched by the glyphs above through P rows drn / frc / grv / stu:
+     DRONE    saws at 55 and 58.3 Hz under a 0.15 Hz tremolo, level 0.06,
+              in on tau 0.5 s, out on tau 0.3 s
+     FRACTURE row copies at ±7 and ±15 cents and a column copy at -12 cents,
+              on the voice's own envelope
+     GRAVITY  row and column glide to half their pitch on tau 0.8 s (~3 s)
+     STUTTER  the gate between LEVEL and BEND, closed 40 ms + 10 ms per held
+              key on an 80 ms clock, as r11 scheduled it */
+
+/* PULSE — the terminal container glows brighter with more held buttons */
+function applyPulseGlow(){
+  if(!pulseMode) return;
+  const count = BUTTONS.size;
+  const intensity = Math.min(1, count * 0.15);
+  const container = document.querySelector('.terminal-container');
+  if(container){
+    container.style.boxShadow =
+      `0 0 ${30 + intensity * 60}px rgba(255,61,139,${0.12 + intensity * 0.3}), inset 0 0 15px rgba(0,0,0,0.8)`;
+  }
+}
+function clearPulseGlow(){
+  const container = document.querySelector('.terminal-container');
+  if(container) container.style.boxShadow = '';
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   DRØP-NΛUT SCØPΞ — vector field HUD controller
+   ═════════════════════════════════════════════════════════════════════════
+   A circular display with draggable vector points. Each point's position
+   maps to audio parameters:
+     X (horizontal, 0=left → 1=right):
+       · stereo pan (-1 → +1)
+       · reverb send (0 → 0.7 wet)
+       · pitch detune (-12 → +12 semitones)
+     Y (vertical, 0=bottom → 1=top):
+       · filter cutoff (50Hz → 12kHz, exponential)
+       · output gain (0 → 1.2)
+   Multiple vector points coexist; the ACTIVE point (last clicked) drives
+   the live parameters. Inactive points are "presets" you can snap to.
+
+   Audio chain: ... → FX chain → radarFilter → radarPanner → radarGain → outNode
+   Reverb is a parallel send: FX → convolver → wetGain → radarPanner
+   Pitch detune is applied at voice creation time via radarPitchSemitones. */
+
+const radarEl = document.getElementById('radar');
+const radarPointsG = document.getElementById('radar-points');
+const radarReadout = document.getElementById('radar-readout');
+
+let radarPoints = [
+  { x: 0.5, y: 0.5, label: 'α' },
+  { x: 0.2, y: 0.8, label: 'β' },
+  { x: 0.8, y: 0.3, label: 'γ' },
+];
+let radarActiveIdx = 0;
+let radarDragIdx = null;
+
+let radarPitchSemitones = 0;
+
+/* read the active point's X/Y → update audio params + readout */
+function radarApply(){
+  const p = radarPoints[radarActiveIdx];
+  if(!p) return;
+  const x = Math.max(0, Math.min(1, p.x));
+  const y = Math.max(0, Math.min(1, p.y));
+  paintReadout();
+  /* X axis: stereo pan (-1 → +1), reverb wet (0 → 0.6), pitch (-12 → +12 semi)
+     Y axis: filter cutoff (50Hz → 12kHz exp), output gain (0.2 → 1.2)
+     — the worklet applies both from P rows rdx / rdy, gliding on tau 50 ms */
+  setP('rdx', x);
+  setP('rdy', y);
+  /* pitch detune for new voices (the worklet reads the same from rdx) */
+  radarPitchSemitones = Math.round((x - 0.5) * 24);
+}
+/* r14 · the readout names what the point does, not where it is: pan, reverb
+   and pitch from X, cutoff and gain from Y — the worklet's own numbers —
+   each value held to its widest, so the line holds still while a point is
+   dragged. Two lines; one on the phone. */
+function paintReadout(){
+  const p = radarPoints[radarActiveIdx];
+  if(!radarReadout || !p) return;
+  const x = Math.max(0, Math.min(1, p.x)), y = Math.max(0, Math.min(1, p.y));
+  const pan = Math.round((2 * x - 1) * 100), semi = Math.round((x - 0.5) * 24), cut = 50 * Math.pow(240, y);
+  const val = (t, w) => { const s = document.createElement('span'); s.className = 'val'; s.textContent = t.padEnd(w); return s; };
+  const l1 = document.createElement('span'), sep = document.createElement('span'), l2 = document.createElement('span');
+  l1.className = 'ro-l'; l2.className = 'ro-l'; sep.className = 'ro-sep'; sep.textContent = ' · ';
+  l1.append('PAN ', val(pan === 0 ? 'C' : (pan < 0 ? 'L' : 'R') + Math.abs(pan), 4),
+            ' · VERB ', val(Math.round(x * 60) + '%', 3),
+            ' · PITCH ', val((semi > 0 ? '+' : '') + semi, 3));
+  l2.append('CUT ', val(cut >= 1000 ? (cut / 1000).toFixed(1) + 'K' : String(Math.round(cut)), 5),
+            ' · GAIN ', val((0.2 + y).toFixed(2), 4), ' · ' + p.label);
+  radarReadout.replaceChildren(l1, sep, l2);
+}
+
+/* the radar chain — radarFilter → radarPanner → PHANTOM delay → radarGain →
+   limiter, with r11's convolver as the parallel wet send — is WORKLET_SRC's
+   scope stage. The SAFETY LIMITER reasoning stands: several held voices,
+   FRACTURE's five extra partials a key, the drone, ECHO's 40% and PHANTOM's
+   45% feedback and radarGain up to 1.2× all sum there, on a phone, likely on
+   headphones — so the worklet keeps r11's -3 dB / 20:1 limiter, then ceil1. */
+
+/* toggle the phantom sweep + reverse-delay on or off: the sweep here, the
+   350 ms / 45% delay in the worklet (P row phm) — r14 reads it backwards */
+function togglePhantomSweep(on){
+  radarEl.classList.toggle('phantom-sweep', on);
+  setP('phm', on ? 1 : 0);
+}
+
+/* render the vector points on the SVG */
+function radarRender(){
+  if(!radarPointsG) return;
+  radarPointsG.textContent = '';
+  radarPoints.forEach((p, i) => {
+    const cx = 10 + p.x * 180;
+    const cy = 190 - p.y * 180;
+    const c = document.createElementNS(radarPointsG.namespaceURI, 'circle');
+    c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', i === radarActiveIdx ? 7 : 5);
+    c.setAttribute('class', 'radar-pt' + (i === radarActiveIdx ? ' active' : ''));
+    c.dataset.idx = i;
+    radarPointsG.appendChild(c);
+    const lbl = document.createElementNS(radarPointsG.namespaceURI, 'text');
+    lbl.setAttribute('x', cx); lbl.setAttribute('y', cy + 2);
+    lbl.setAttribute('class', 'radar-pt-label');
+    lbl.textContent = p.label;
+    radarPointsG.appendChild(lbl);
+  });
+}
+
+/* radar interaction: click to select + drag vector points */
+let radarDragging = false;
+let radarPtr = null;   /* r13: the pointer that is dragging — a stylus elsewhere does not end the drag */
+radarEl.addEventListener('pointerdown', e => {
+  const pt = e.target.closest('.radar-pt');
+  if(pt){
+    radarActiveIdx = +pt.dataset.idx;
+    radarDragIdx = radarActiveIdx;
+    radarDragging = true;
+    radarPtr = e.pointerId;
+    try{ radarEl.setPointerCapture(e.pointerId); }catch(_){}
+    pt.classList.add('dragging');
+  }else{
+    /* clicking empty radar space moves the ACTIVE point there */
+    const rect = radarEl.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = 1 - (e.clientY - rect.top) / rect.height;
+    radarPoints[radarActiveIdx].x = Math.max(0, Math.min(1, x));
+    radarPoints[radarActiveIdx].y = Math.max(0, Math.min(1, y));
+  }
+  radarRender();
+  radarApply();
+});
+radarEl.addEventListener('pointermove', e => {
+  if(!radarDragging || radarDragIdx === null || e.pointerId !== radarPtr) return;
+  const rect = radarEl.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width;
+  const y = 1 - (e.clientY - rect.top) / rect.height;
+  radarPoints[radarDragIdx].x = Math.max(0, Math.min(1, x));
+  radarPoints[radarDragIdx].y = Math.max(0, Math.min(1, y));
+  radarRender();
+  radarApply();
+});
+function radarLift(e){
+  if(e.pointerId !== radarPtr) return;
+  radarDragging = false;
+  radarDragIdx = null;
+  radarPtr = null;
+  /* remove dragging class from all points */
+  radarPointsG.querySelectorAll('.radar-pt.dragging').forEach(p => p.classList.remove('dragging'));
+}
+window.addEventListener('pointerup', radarLift);
+window.addEventListener('pointercancel', radarLift);
+
+/* ═ r14 · THΞ RING IS THΞ SΞQUΞNCΞ ═ sixteen ticks round the scope's rim,
+   one a step from twelve o'clock: a placed key lit signal-green, the step
+   playing magenta, the STEP cursor a magenta dot inside the ring — the step
+   row's own colours. PHANTOM lays them anticlockwise, with its beam. While
+   the loop runs the sweep IS the playhead, gliding through each step;
+   stopped, it scans on r11's 4 s turn. A point pings as the beam crosses it. */
+const SVGNS = radarEl.namespaceURI;   /* the inline <svg>'s own namespace: no URL in the page for VΞILPØINT to read as a host */
+const ringG = document.getElementById('radar-ring');
+const pingG = document.getElementById('radar-pings');
+const SWEEPS = Array.from(radarEl.querySelectorAll('.radar-sweep, .radar-sweep-fan, .radar-sweep-phantom, .radar-sweep-phantom-fan'));
+const sweepLine = radarEl.querySelector('.radar-sweep'), sweepLinePh = radarEl.querySelector('.radar-sweep-phantom');
+const ringTicks = [], pingRings = [];
+let ringCursor = null;
+function buildRing(){
+  for(let k = 0; k < 16; k++){ const l = document.createElementNS(SVGNS, 'line'); ringG.appendChild(l); ringTicks.push(l); }
+  ringCursor = document.createElementNS(SVGNS, 'circle');
+  ringCursor.setAttribute('r', '2.2'); ringCursor.setAttribute('class', 'ring-cursor');
+  ringG.appendChild(ringCursor);
+  radarPoints.forEach(() => {
+    const c = document.createElementNS(SVGNS, 'circle');
+    c.setAttribute('class', 'radar-ping'); c.setAttribute('r', '0'); c.style.display = 'none';
+    pingG.appendChild(c); pingRings.push(c);
+  });
+}
+/* step k's point at radius r */
+function ringAt(k, r){
+  const a = (phantomMode ? -k : k) * Math.PI / 8;
+  return [100 + r * Math.sin(a), 100 - r * Math.cos(a)];
+}
+function paintRing(){
+  if(!ringTicks.length) return;
+  for(let k = 0; k < 16; k++){
+    const v = stepVal(k), ph = running && k === playhead;
+    const [x1, y1] = ringAt(k, ph ? 90 : (v > 0 ? 91 : 92.5)), [x2, y2] = ringAt(k, ph ? 99 : (v > 0 ? 98 : 96));
+    const l = ringTicks[k];
+    l.setAttribute('x1', x1.toFixed(1)); l.setAttribute('y1', y1.toFixed(1));
+    l.setAttribute('x2', x2.toFixed(1)); l.setAttribute('y2', y2.toFixed(1));
+    l.setAttribute('class', 'ring-tick' + (k % 4 === 0 ? ' beat' : '') + (v > 0 ? ' hit' : '') + (ph ? ' ph' : '') + (k >= lenN() ? ' off' : ''));
+  }
+  if(currentMode === 'step'){
+    const [cx, cy] = ringAt(stepEdit, 86);
+    ringCursor.setAttribute('cx', cx.toFixed(1)); ringCursor.setAttribute('cy', cy.toFixed(1));
+    ringCursor.style.display = '';
+  }else ringCursor.style.display = 'none';
+}
+/* the beam: held on the playhead while the loop runs, r11's CSS turn otherwise */
+let sweepHeld = false;
+function sweepTo(deg){
+  const t = 'rotate(' + deg.toFixed(2) + 'deg)';
+  for(const el of SWEEPS){ el.style.animation = 'none'; el.style.transform = t; }
+  sweepHeld = true;
+}
+function sweepFree(){
+  if(!sweepHeld) return;
+  for(const el of SWEEPS){ el.style.animation = ''; el.style.transform = ''; }
+  sweepHeld = false;
+}
+let beamAnim = null, beamAnimPh = null;
+function cssBeam(el, ph){
+  let a = ph ? beamAnimPh : beamAnim;
+  if(!a || a.playState === 'idle'){
+    a = (el && el.getAnimations) ? (el.getAnimations()[0] || null) : null;
+    if(ph) beamAnimPh = a; else beamAnim = a;
+  }
+  return (a && typeof a.currentTime === 'number') ? (a.currentTime % 4000) / 4000 : null;
+}
+/* where the beam points now, in degrees clockwise from twelve (negative: anticlockwise) */
+function beamDeg(){
+  if(running && playhead >= 0){
+    const f = Math.min(1, (performance.now() - lastStepAt) / stepMs(playhead));
+    return (phantomMode ? -1 : 1) * (playhead + f) * 22.5;
+  }
+  const f = cssBeam(phantomMode ? sweepLinePh : sweepLine, phantomMode);
+  return f === null ? null : (phantomMode ? -f * 360 : f * 360);   /* the phantom keyframes turn 360 → 0 */
+}
+const deg360 = a => { a %= 360; return a < 0 ? a + 360 : a; };
+const pingAt = [-1e9, -1e9, -1e9];
+let lastBeam = null;
+/* once a frame, from the orbit loop */
+function scopeTick(now){
+  const deg = beamDeg();
+  if(running && playhead >= 0 && deg !== null) sweepTo(deg); else sweepFree();
+  if(deg !== null && lastBeam !== null){
+    const dir = phantomMode ? -1 : 1, swept = deg360(dir * (deg - lastBeam));
+    if(swept > 0 && swept < 90){
+      radarPoints.forEach((p, i) => {
+        const th = Math.atan2(p.x - 0.5, p.y - 0.5) * 180 / Math.PI;
+        if(deg360(dir * (th - lastBeam)) <= swept) pingAt[i] = now;
+      });
+    }
+  }
+  lastBeam = deg;
+  for(let i = 0; i < pingRings.length; i++){
+    const c = pingRings[i], age = now - pingAt[i], p = radarPoints[i];
+    if(age >= 0 && age < 600 && p){
+      const f = age / 600;
+      c.setAttribute('cx', (10 + p.x * 180).toFixed(1)); c.setAttribute('cy', (190 - p.y * 180).toFixed(1));
+      c.setAttribute('r', (7 + f * 10).toFixed(1)); c.style.opacity = (0.8 * (1 - f)).toFixed(2);
+      if(c.style.display) c.style.display = '';
+    }else if(!c.style.display) c.style.display = 'none';
+  }
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   11 · WHΛT THΞ RΛCK SΛYS — srcd-duo, from the rack that mounted us only
+   ═════════════════════════════════════════════════════════════════════════
+   r11 handled srcd-omni weave traffic here (chrome, ident-req, status-req,
+   targets, transport, routes, score-request). A module hears the r158 set:
+   the worklet's replies (wl-msg — the loop's run / step, the slots, panics;
+   see fromWorklet), tap-power, pwr-request, midi-note, bpm, wl-dead.
+   The gate in the shared header admits by window and origin; the explicit
+   check below stays as the contract asks. */
+window.addEventListener('message', e => {
+  if (window.parent !== window && !srcdAdmit(e)) return;
+  const d = e.data; if(!d || d.src !== 'srcd-duo') return;
+  if(d.cmd === 'wl-msg'){
+    if(d.mod !== undefined && d.mod !== SRCD_MOD) return;
+    if(node && node.port && typeof node.port.onmessage === 'function') node.port.onmessage({ data: d.m });
+    return;
+  }
+  /* the rack's module row shows this module's name: the page's own title steps aside while it does. The page's ⏻ stays —
+     some racks (STRΛTΛ) draw no power control for a module, and a module that is off can only be woken from its ⏻ */
+  if(d.cmd === 'chrome-header'){ document.body.classList.toggle('omni-chromed', !!d.hide); return; }
+  if(d.cmd === 'tap-power'){ powered ? powerOff() : powerOn(); return; }
+  if(d.cmd === 'pwr-request'){ pwrSay(); return; }
+  if(d.cmd === 'midi-note'){
+    if(!powered) return;
+    const n = d.note | 0;
+    if(!(n >= 0 && n < 128)) return;
+    if(d.on && !(d.vel !== undefined && +d.vel <= 0)) midiOn(n, d.vel === undefined ? 0.8 : +d.vel); else midiOff(n);
+    return;
+  }
+  /* the rack's tempo: the loop follows it, re-timed on its next step */
+  if(d.cmd === 'bpm'){ const b = +d.bpm; if(b > 0){ setP('bpm', b); paintFader('bpm'); } return; }
+  if(d.cmd === 'wl-dead'){
+    powered = false; node = null; faceQuiet(); pwrPaint(); pwrSay();
+    statusText.textContent = '✕ the engine stopped in the rack';
+    return;
+  }
+});
+
+/* ═ CFG — the config panel r11 left a placeholder for (phase 9), r14 ═
+   One range per P row it shapes, the number beside it the number sent.
+   On the phone it lies over the selectors and the scope (placeConfig),
+   so the keys can be played while it is open. */
+const configEl = document.getElementById('config');
+const cfgBtn = document.getElementById('cfg');
+const FADERS = new Map();   /* P key → { r, out, fmt } */
+const msTxt = s => s < 1 ? Math.round(s * 1000) + ' ms' : s.toFixed(2) + ' s';
+const pctTxt = v => Math.round(v * 100) + '%';
+const CFG_ROWS = [
+  ['lvl', 'LEVEL',   pctTxt],
+  ['atk', 'ATTACK',  v => msTxt(0.0015 * Math.pow(2000, v))],   /* the worklet's ramp, 1.5 ms – 3 s */
+  ['rel', 'RELEASE', v => msTxt(0.005 * Math.pow(400, v))],    /* its time constant, 5 ms – 2 s */
+  ['amt', 'AMOUNT',  pctTxt],
+  ['bpm', 'BPM',     v => String(Math.round(v)), 1],
+  ['gat', 'GATE',    pctTxt, 0.01],
+  ['swg', 'SWING',   pctTxt, 0.01],
+  ['crw', 'ROW HZ',  v => String(Math.round(v)), 1],
+  ['ccl', 'COL HZ',  v => String(Math.round(v)), 1],
+  ['cst', 'RATIO',   v => '×' + v.toFixed(3), 0.001],
+  ['twi', 'TWIST',   v => (v > 0.001 ? '+' : v < -0.001 ? '−' : '') + Math.round(Math.abs(v) * 24) + ' dB', 1 / 24]   /* column against row, DTMF engine */
+];
+function buildConfig(){
+  for(const [k, name, fmt, step] of CFG_ROWS){
+    const q = P[PIX[k]];
+    const lab = document.createElement('label'), nm = document.createElement('span');
+    const r = document.createElement('input'), out = document.createElement('output');
+    lab.className = 'cfg-fd'; nm.textContent = name;
+    r.type = 'range'; r.min = String(q.min); r.max = String(q.max); r.step = String(step || (q.max - q.min) / 200);
+    r.value = String(state.p[PIX[k]]);
+    r.addEventListener('input', () => cfgSet(k, name, +r.value));
+    lab.append(nm, out, r);
+    configEl.appendChild(lab);
+    FADERS.set(k, { r, out, fmt });
+    paintFader(k);
+  }
+  const row = document.createElement('div'), rnd = document.createElement('button'), clr = document.createElement('button');
+  row.className = 'cfg-btns';
+  rnd.className = 'btn'; rnd.type = 'button'; rnd.textContent = 'RANDOM'; rnd.title = 'dial a random number into the sixteen steps';
+  clr.className = 'btn'; clr.type = 'button'; clr.textContent = 'CLEAR'; clr.title = 'clear the sixteen steps';
+  rnd.addEventListener('click', randomSteps);
+  clr.addEventListener('click', clearSteps);
+  row.append(rnd, clr);
+  configEl.appendChild(row);
+}
+function paintFader(k){
+  const f = FADERS.get(k); if(!f) return;
+  const v = state.p[PIX[k]];
+  if(Math.abs(+f.r.value - v) > 1e-9) f.r.value = String(v);
+  f.out.textContent = f.fmt(v);
+}
+function cfgSet(k, name, v){
+  if(k === 'twi') v = Math.round(v * 24) / 24 + 0;   /* whole dB; the +0 turns -0 into 0 */
+  setP(k, v);
+  paintFader(k);
+  if(k === 'crw' || k === 'ccl' || k === 'cst') applyCustomBank();
+  statusText.textContent = name + ' ' + FADERS.get(k).fmt(state.p[PIX[k]]);
+}
+/* phone: from the selectors' top to the readout's foot; elsewhere, below the slots as r11 placed it */
+function placeConfig(){
+  if(!configEl.classList.contains('open') || window.innerWidth > 480){ configEl.style.top = ''; configEl.style.height = ''; return; }
+  const tc = document.querySelector('.terminal-container').getBoundingClientRect();
+  const a = document.querySelector('.controls').getBoundingClientRect();
+  const b = document.querySelector('.radar-wrap').getBoundingClientRect();
+  configEl.style.top = (a.top - tc.top) + 'px';
+  configEl.style.height = Math.max(120, b.bottom - a.top) + 'px';
+  /* a phone whose fonts or rounding make the fields a little taller than this region: grow the panel (down over the top of
+     the orbit, never past the face) to hold its buttons whole, rather than clip their bottom edge and scroll */
+  const over = configEl.scrollHeight - configEl.clientHeight;
+  if(over > 0){
+    const room = tc.bottom - a.top - 4;
+    configEl.style.height = Math.min(configEl.offsetHeight + over + 1, Math.max(room, configEl.offsetHeight)) + 'px';
+  }
+}
+/* ═ LEN — how many of the sixteen steps the loop plays ═
+   A continuous slide (step=any): the thumb is never notched. The worklet takes the nearest whole step, so the loop
+   changes length on the beat while it plays; the galaxy takes the unrounded value, so the zoom is smooth too. */
+const lenEl = document.getElementById('len'), lenOut = document.getElementById('len-out');
+const lenN = () => Math.max(1, Math.min(16, Math.round(state.p[PIX.len])));
+function initLen(){ lenEl.value = String(state.p[PIX.len]); lenOut.textContent = String(lenN()); galaxyTo((state.p[PIX.len] - 1) / 15, true); }
+lenEl.addEventListener('input', () => {
+  const v = +lenEl.value, n = Math.max(1, Math.min(16, Math.round(v)));
+  if(n !== lenN()){
+    setP('len', n); paintSteps();
+    statusText.textContent = 'LENGTH · ' + n + (n === 1 ? ' step' : ' steps');
+  }
+  lenOut.textContent = String(n);
+  galaxyTo((v - 1) / 15);
+});
+
+/* ═ GALAXY — the backdrop LEN moves ═
+   A spiral galaxy painted once (deterministic: three arms of stars, a bright core, soft gas, in the face's own
+   cyan · teal · violet · magenta) onto a canvas behind the face. Sliding LEN scales that picture — out to the whole
+   galaxy at 16 steps, in toward the core at 1 — with a slow twist as it goes, eased so the sky never feels notched.
+   Nothing runs while the slider is still: a transform on one layer, only while you slide. */
+const galaxyBox = document.getElementById('galaxy-zoom'), galaxyCv = document.getElementById('galaxy-img');
+const GX = { size: 1024, out: 0.5, inn: 3.5, t: 1, to: 1, raf: 0, last: 0 };
+const REDUCE_MOTION = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+function buildGalaxy(){
+  const S = GX.size, g = galaxyCv.getContext('2d'); if(!g) return;
+  galaxyCv.width = S; galaxyCv.height = S;
+  let seed = 20261024; const rnd = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
+  const gau = () => (rnd() + rnd() + rnd() + rnd() - 2) * 1.2;
+  const C = S / 2, R = S * 0.47, K = 2.3, ARMS = 3, TWO_PI = Math.PI * 2;
+  const arm = (i, r, spread) => (i % ARMS) * TWO_PI / ARMS + K * Math.log(r / (0.06 * R)) + gau() * spread;
+  /* colour by distance from the core: white-cyan, cyan to teal, violet to magenta */
+  const hue = (t) => t < 0.28 ? [235, 250, 255] : t < 0.6 ? (rnd() < 0.6 ? [0, 229, 255] : [57, 255, 180]) : (rnd() < 0.7 ? [176, 38, 255] : [255, 61, 139]);
+  g.globalCompositeOperation = 'lighter';
+  let gr = g.createRadialGradient(C, C, 0, C, C, R * 1.08);
+  gr.addColorStop(0, 'rgba(40,110,160,0.20)'); gr.addColorStop(0.55, 'rgba(70,40,130,0.08)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, S, S);
+  for(let i = 0; i < 340; i++){                                    /* gas along the arms */
+    const r = R * (0.12 + 0.85 * Math.pow(rnd(), 0.9)), a = arm(i, r, 0.16);
+    const x = C + r * Math.cos(a), y = C + r * Math.sin(a), rad = 14 + rnd() * 34 * (0.5 + r / R), c = hue(r / R);
+    gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, 'rgba(' + c + ',' + (0.035 + rnd() * 0.05).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(' + c + ',0)');
+    g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  for(let i = 0; i < 5200; i++){                                   /* the arms' stars */
+    const r = R * (0.04 + 0.96 * Math.pow(rnd(), 1.5)), a = arm(i, r, 0.10 + 0.28 * (r / R));
+    const x = C + r * Math.cos(a), y = C + r * Math.sin(a), c = hue(r / R), sz = 0.5 + rnd() * rnd() * 2.0;
+    g.fillStyle = 'rgba(' + c + ',' + (0.25 + rnd() * 0.65).toFixed(2) + ')';
+    g.beginPath(); g.arc(x, y, sz, 0, TWO_PI); g.fill();
+  }
+  for(let i = 0; i < 700; i++){                                    /* the faint halo between them */
+    const r = R * 1.05 * Math.sqrt(rnd()), a = rnd() * TWO_PI;
+    g.fillStyle = 'rgba(200,225,255,' + (0.08 + rnd() * 0.22).toFixed(2) + ')';
+    g.fillRect(C + r * Math.cos(a), C + r * Math.sin(a), 1, 1);
+  }
+  for(let i = 0; i < 40; i++){                                     /* a few bright stars, glowing */
+    const r = R * (0.1 + 0.85 * rnd()), a = arm(i, r, 0.25), x = C + r * Math.cos(a), y = C + r * Math.sin(a), c = hue(r / R);
+    gr = g.createRadialGradient(x, y, 0, x, y, 9);
+    gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.25, 'rgba(' + c + ',0.45)'); gr.addColorStop(1, 'rgba(' + c + ',0)');
+    g.fillStyle = gr; g.fillRect(x - 9, y - 9, 18, 18);
+  }
+  gr = g.createRadialGradient(C, C, 0, C, C, R * 0.3);              /* the core */
+  gr.addColorStop(0, 'rgba(235,252,255,0.95)'); gr.addColorStop(0.14, 'rgba(0,229,255,0.55)'); gr.addColorStop(0.5, 'rgba(176,38,255,0.18)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, S, S);
+}
+function galaxyPaint(){
+  const s = GX.inn * Math.pow(GX.out / GX.inn, GX.t), rot = (1 - GX.t) * 70;
+  galaxyBox.style.transform = 'rotate(' + rot.toFixed(2) + 'deg) scale(' + s.toFixed(4) + ')';
+}
+/* zoomed out, the whole galaxy spans the panel; zoomed in, seven times closer */
+function galaxyFit(){
+  const tc = document.querySelector('.terminal-container');
+  const D = Math.max(tc.clientWidth * 1.1, tc.clientHeight * 0.75);
+  GX.out = D / (GX.size * 0.94); GX.inn = GX.out * 7;
+  galaxyPaint();
+}
+function galaxyStep(now){
+  GX.raf = 0;
+  const dt = Math.min(64, now - (GX.last || now)); GX.last = now;
+  const d = GX.to - GX.t;
+  if(Math.abs(d) < 0.0005){ GX.t = GX.to; GX.last = 0; galaxyPaint(); return; }
+  GX.t += d * (1 - Math.exp(-dt / 110));
+  galaxyPaint();
+  GX.raf = requestAnimationFrame(galaxyStep);
+}
+function galaxyTo(t, instant){
+  GX.to = t;
+  if(instant || REDUCE_MOTION){ GX.t = t; galaxyPaint(); return; }
+  if(!GX.raf){ GX.last = 0; GX.raf = requestAnimationFrame(galaxyStep); }
+}
+function toggleConfig(open){
+  configEl.classList.toggle('open', open);
+  cfgBtn.classList.toggle('on', open);
+  cfgBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+  placeConfig();
+}
+cfgBtn.addEventListener('click', () => toggleConfig(!configEl.classList.contains('open')));
+
+/* ═════════════════════════════════════════════════════════════════════════
+   12 · INITIALIZATION
+   ═════════════════════════════════════════════════════════════════════════
+   Current build status:
+     ✓ host/protocol   ✓ audio ctx   ✓ DTMF + alien tables   ✓ voices (dtmf/fm/noise)
+     ✓ FX/bend (worklet bitcrusher)   ✓ samples (self-record + pattern render + play)
+     ✓ data-row emit/request   ✓ pattern record/play/export   ✓ gesture-zone pitch-bend
+     ✓ STEP 16-grid sequencer   ✓ score-part (contributes to enclosure MusicXML export)
+     ✓ transport sync (run:1/0)   ✓ MIDI note reporting (key inference participation)
+     ✓ WARP engine (ring modulation)   ✓ ECHO + VACUUM bend FX
+     ✓ FRACTURE (microtonal clusters)   ✓ GRAVITY (pitch-sink)   ✓ STUTTER (gate tremolo)   ✓ MIRROR (matrix transpose)
+     ✓ DRØP-NΛUT scope (HUD vector points · X=pan/reverb/pitch, Y=cutoff/volume)   ✓ Orbiting glyph system (catch & release)
+     ✓ PHANTOM reverse-delay (counter-clockwise sweep + feedback delay)   ✓ HUD brackets + cosmic theming
+     ✓ ABCD modifiers removed (replaced by orbiting glyphs)   ✓ Neon glow/pulse/breathe + deep-space drop-naut aesthetic
+     ✓ r12 · SRC-D r158 module: every sound in usr-glitch-dial, srcd-duo only, ⏻ + pwr-state,
+       rack MIDI / tempo / transport / panic, slots kept across power cycles
+     ✓ r13 · fits a phone screen (fitPhone), 46 px finger glyphs, keys to 36 px for the stylus,
+       a finger holds a glyph / drags the scope while the stylus plays (per-pointer)
+     ✓ r14 · PATTERN + STEP on the worklet's sample clock (rack transport + atTime, join mid-bar,
+       swing, gate), slots armed / cued to the downbeat, backwards PHANTOM, 8-line reverb,
+       anti-aliased drive, CFG (level · envelope · amount · tempo · custom bank), keys with
+       their Hz lit by the sequence and the rack's MIDI, the step ring, the fuller readout
+     · XML sheet-music local export   · chassis taps (needs enclosure)
+     · score-part (was weave traffic — no channel for it in r158)
+
+   Hosted: nothing is announced — the rack reads our name from the header
+   comment and asks for power with tap-power / pwr-request. Standalone: the
+   AudioContext is built on the first gesture (⏻, a key, a glyph, a slot) —
+   the browser's autoplay policy wants one. */
+/* r13 · PHONE FIT — in portrait on a phone the face is sized to the screen
+   it is on, so nothing scrolls: --key and --radar are set by measurement.
+   The keys give way first (47 → 40 px), then the scope (→ 120 px), then the
+   keys again (→ 36 px), then the scope (→ 90 px). The glyphs keep 46 px.
+   Wider than 480 px (desktop, landscape) r11's layout stands as it was. */
+const FIT = { kMax: 47, kMid: 40, kMin: 36, rMax: 200, rMid: 120, rMin: 90 };
+function fitPhone(){
+  const rs = document.documentElement.style;
+  if(window.innerWidth > 480){ rs.removeProperty('--key'); rs.removeProperty('--radar'); return; }
+  const tc = document.querySelector('.terminal-container');
+  const over = () => document.body.getBoundingClientRect().bottom + window.scrollY - window.innerHeight;
+  let k = FIT.kMax, r = Math.min(FIT.rMax, tc.clientWidth - 24);
+  const set = () => { rs.setProperty('--key', k + 'px'); rs.setProperty('--radar', r + 'px'); };
+  set();
+  let o = over();
+  while(o > 0 && k > FIT.kMid){ k--; set(); o = over(); }
+  if(o > 0){ r = Math.max(FIT.rMid, r - Math.ceil(o)); set(); o = over(); }
+  while(o > 0 && k > FIT.kMin){ k--; set(); o = over(); }
+  if(o > 0){ r = Math.max(FIT.rMin, r - Math.ceil(o)); set(); }
+}
+/* refit after anything that changes the face's height (resize, the STEP row) */
+function refit(){
+  fitPhone();
+  galaxyFit();
+  stopOrbit();
+  computeOrbitLayout();
+  startOrbit();
+  placeConfig();
+}
+
+applyCustomBank();
+buildGrid();
+buildSampleRow();
+buildStepGrid();
+buildRing();
+buildConfig();
+buildGalaxy();
+paintPlay();
+paintRing();
+radarRender();
+paintReadout();
+fitPhone();
+galaxyFit();
+initLen();
+/* compute orbit layout after grid renders, attach glyph handlers, start the
+   orbit loop. requestAnimationFrame ensures layout is settled before we
+   measure the grid center. */
+requestAnimationFrame(() => {
+  computeOrbitLayout();
+  attachGlyphHandlers();
+  startOrbit();
+});
+window.addEventListener('resize', () => requestAnimationFrame(refit));
+/* pause orbit when tab hidden to save CPU; resume when visible */
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden) stopOrbit();
+  else startOrbit();
+});
+statusText.textContent = 'STANDBY · ' + (SRCD_HOSTED ? 'HOSTED' : 'STANDALONE');
+
+/* ⏻ — the contract's power button; the rack's tap-power does the same */
+document.getElementById('pwr').addEventListener('click', () => { powered ? powerOff() : powerOn(); });
+</script>
+</body>
+</html>
